@@ -5,6 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "22.20.0"
+  # Playwright is a devDep of apps/web for E2E tests only. Skip the ~150MB Chromium download on Netlify builds.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 
 # SPA fallback — for HashRouter all paths actually live at index.html, so this is belt-and-suspenders.
 [[redirects]]
