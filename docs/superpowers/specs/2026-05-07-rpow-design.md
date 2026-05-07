@@ -3,8 +3,12 @@
 **Status:** Draft v1
 **Date:** 2026-05-07
 **Owner:** fred
+**Domain:** rpow2.com
+**Tagline:** *A tribute to the original RPOW by Hal Finney.*
 
-A faithful modern recreation of Hal Finney's Reusable Proofs of Work (2004), shipped as a public web product with companion iOS/Android app. Users sign in via magic link, mine RPOW tokens by solving hashcash-style proofs of work, and transfer tokens to other users by email. The server is the trusted issuer/registry: it signs tokens, prevents double-spend, and re-issues on transfer.
+A faithful modern recreation of Hal Finney's Reusable Proofs of Work (2004), shipped as a public web product at **rpow2.com** with companion iOS/Android app. Users sign in via magic link, mine RPOW tokens by solving hashcash-style proofs of work, and transfer tokens to other users by email. The server is the trusted issuer/registry: it signs tokens, prevents double-spend, and re-issues on transfer.
+
+The product is positioned explicitly as a tribute. The original RPOW system was Hal Finney's 2004 prototype of a reusable proof-of-work currency — a direct intellectual ancestor of Bitcoin. RPOW2 keeps the protocol's core idea (mine a hashcash POW, exchange it for a server-signed reusable token, transfer by reissuance) and modernizes the surface (modern crypto, email identity, web/mobile clients).
 
 ## Goals
 
@@ -82,6 +86,7 @@ The signed payload is mostly for verifiability — a third party can fetch the p
 - Default theme: off-white on near-black. Toggleable amber-on-black and green-on-black themes.
 - Subtle CRT scanline effect available but off by default.
 - Single-column layouts, ~80-char visual width, fixed-width type metrics.
+- Every page renders the tagline `a tribute to the original rpow by hal finney` in the top header strip, and the public ledger and footer link to Hal Finney's original RPOW announcement (cypherpunks archive) for context.
 
 ### Pages
 
@@ -276,9 +281,8 @@ transfers(
 
 ## Open Questions
 
-- Final domain: `rpow2.com` is a placeholder; user may pick another.
-- Email sender domain: needs DNS records (SPF, DKIM, DMARC via Resend) on whichever domain we ship.
-- Native mobile mining module: build custom or pull `react-native-quick-crypto` and wrap a tight loop in JS — decided in implementation plan based on benchmarks.
+- Email sender domain: needs DNS records (SPF, DKIM, DMARC via Resend) configured for `rpow2.com`.
+- Native mobile mining module: build a custom Expo native module vs. pulling `react-native-quick-crypto` and wrapping a tight loop in JS — decided in implementation plan based on benchmarks.
 
 ## Out-of-Scope Reminders
 
