@@ -1,0 +1,42 @@
+:root {
+  --bg: #0b0b0b;
+  --fg: #e8e3d3;
+  --accent: #6ee7b7;
+  --dim: #6b6b6b;
+  --error: #f87171;
+}
+:root[data-theme="amber"] { --fg: #ffb000; --accent: #ffb000; }
+:root[data-theme="green"] { --fg: #5be09a; --accent: #5be09a; }
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+a { color: var(--accent); text-decoration: underline; }
+button {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--fg);
+  padding: 4px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover { background: var(--fg); color: var(--bg); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+input {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--dim);
+  padding: 4px 8px;
+  font: inherit;
+  outline: none;
+}
+input:focus { border-color: var(--fg); }
+.app-shell { max-width: 80ch; margin: 0 auto; padding: 16px; }
+.tagline { color: var(--dim); font-size: 12px; }
+.error { color: var(--error); }
