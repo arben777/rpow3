@@ -8,19 +8,51 @@ export function LedgerPage() {
   useEffect(() => { api.ledger().then(setD); }, []);
   if (!d) return <Panel title="PUBLIC LEDGER"><div>loading...</div></Panel>;
   return (
-    <Panel title="PUBLIC LEDGER">
-      <pre style={{ margin: 0 }}>
+    <>
+      <Panel title="PUBLIC LEDGER">
+        <pre style={{ margin: 0 }}>
 {`  TOTAL MINTED        : ${d.total_minted}
   TOTAL TRANSFERRED   : ${d.total_transferred}
   CIRCULATING SUPPLY  : ${d.circulating_supply}
   CURRENT DIFFICULTY  : ${d.current_difficulty_bits} trailing zero bits
   USER COUNT          : ${d.user_count}
 `}
-      </pre>
-      <div style={{ marginTop: 12 }} className="tagline">
-        a tribute to the original rpow by hal finney —
-        <a href="https://nakamotoinstitute.org/finney/rpow/" target="_blank" rel="noreferrer"> finney's announcement</a>
-      </div>
-    </Panel>
+        </pre>
+        <div style={{ marginTop: 12 }} className="tagline">
+          a modern tribute to a tribute to the original rpow by hal finney —
+          <a href="https://nakamotoinstitute.org/finney/rpow/" target="_blank" rel="noreferrer"> finney's announcement</a>
+        </div>
+      </Panel>
+
+      <Panel title="ABOUT RPOW">
+        <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+{`  Hal Finney published RPOW (Reusable Proofs of Work) in 2004 as the
+  first cryptographic money based on proof-of-work. Bitcoin came four
+  years later, in 2008/2009.
+
+  Finney was deeply involved in early Bitcoin: he received the first
+  bitcoin transaction from Satoshi Nakamoto in January 2009. Many have
+  speculated he was part of the team behind the Satoshi pseudonym — a
+  claim he denied during his lifetime.
+
+  The original RPOW was centralized. A single trusted server, running
+  on an IBM 4758 secure coprocessor, signed token transfers and
+  prevented double-spends. There was no blockchain, no decentralized
+  consensus, and no difficulty adjustment — meaning the supply was
+  effectively unbounded as long as someone had compute. (A trusted
+  server could enforce a cap; Finney just didn't.)
+
+  Bitcoin solved all three: decentralized consensus via PoW mining tied
+  to a chain, automatic difficulty adjustment, and a fixed 21M supply
+  cap.
+
+  rpow2.com is a modern tribute to the spirit of Finney's original.
+  No IBM 4758 — Ed25519 signatures, magic-link auth, Postgres ledger.
+  Still centralized. Still no supply cap. Still no difficulty
+  adjustment. Faithful by design.
+`}
+        </pre>
+      </Panel>
+    </>
   );
 }

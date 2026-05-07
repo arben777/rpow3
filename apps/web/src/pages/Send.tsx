@@ -10,22 +10,29 @@ export function SendPage() {
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [error, setError] = useState('');
   const [transferId, setTransferId] = useState('');
+  const [pending, setPending] = useState(false);
+  const [sentTo, setSentTo] = useState('');
+  const [sentAmt, setSentAmt] = useState(0);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!me) return;
-    setStatus('sending'); setError('');
+    setStatus('sending'); setError(''); setPending(false);
     try {
       const r = await api.send({ recipient_email: recipient, amount, idempotency_key: crypto.randomUUID() });
-      setStatus('sent'); setTransferId(r.transfer_id);
+      setStatus('sent');
+      setTransferId(r.transfer_id);
+      setPending(r.pending === true);
+      setSentTo(r.recipient_email);
+      setSentAmt(r.transferred);
       await refresh();
     } catch (err: any) {
       setStatus('error');
       const code = err?.error ?? 'INTERNAL';
       const msgs: Record<string, string> = {
-        RECIPIENT_NOT_FOUND: 'recipient has no rpow2 account',
         INSUFFICIENT_BALANCE: 'not enough tokens in your wallet',
         BAD_REQUEST: err?.message ?? 'bad request',
+        RATE_LIMITED: err?.message ?? 'too many attempts',
       };
       setError(msgs[code] ?? code);
     }
@@ -42,7 +49,21 @@ export function SendPage() {
           <button type="submit" disabled={status === 'sending'}>[ {status === 'sending' ? '...' : 'SEND'} ]</button>
         </div>
       </form>
-      {status === 'sent' && <div style={{ marginTop: 8 }}>+ sent. transfer id: {transferId}</div>}
+      {status === 'sent' && !pending && (
+        <pre style={{ margin: '12px 0 0' }}>
+{`  + SENT  ${sentAmt} RPOW → ${sentTo}
+  transfer id: ${transferId}`}
+        </pre>
+      )}
+      {status === 'sent' && pending && (
+        <pre style={{ margin: '12px 0 0' }}>
+{`  + PENDING CLAIM
+  ${sentTo} does not have an rpow2 account yet.
+  An email has been sent inviting them to claim ${sentAmt} RPOW.
+  Your tokens are reserved until they claim or the link expires (30d).
+  transfer id: ${transferId}`}
+        </pre>
+      )}
       {status === 'error' && <div className="error" style={{ marginTop: 8 }}>error: {error}</div>}
     </Panel>
   );

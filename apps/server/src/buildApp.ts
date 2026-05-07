@@ -8,6 +8,7 @@ import { meRoutes } from './routes/me.js';
 import { challengeRoutes } from './routes/challenge.js';
 import { mintRoutes } from './routes/mint.js';
 import { sendRoutes } from './routes/send.js';
+import { claimRoutes } from './routes/claim.js';
 import { activityRoutes } from './routes/activity.js';
 import { ledgerRoutes } from './routes/ledger.js';
 
@@ -59,6 +60,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(challengeRoutes);
   await app.register(mintRoutes);
   await app.register(sendRoutes);
+  await app.register(claimRoutes);
   await app.register(activityRoutes);
   await app.register(ledgerRoutes);
 
@@ -76,9 +78,12 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     app.get('/test/last-link/:email', async (req, reply) => {
       const email = decodeURIComponent((req.params as { email: string }).email).toLowerCase();
       const last = (app.mailer as any).lastTo?.(email);
-      if (!last) return reply.code(404).send({});
+      if (!last) return reply.code(404).send({ error: 'NO_LINK', message: `no magic link for ${email}` });
       const m = (last.text as string).match(/https?:\/\/[^\s]+token=[\w-]+/);
-      return { link: m?.[0] };
+      if (!m) return reply.code(404).send({ error: 'NO_LINK', message: 'link not parseable' });
+      const q = req.query as Record<string, string>;
+      if (q.json === '1') return { link: m[0] };
+      return reply.redirect(m[0], 302);
     });
   }
 

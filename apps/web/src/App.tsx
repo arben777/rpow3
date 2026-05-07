@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Route, Routes, NavLink } from 'react-router-dom';
 import { applyTheme, loadTheme, nextTheme, type Theme } from './theme.js';
+import { useMe } from './hooks/useMe.js';
+import { api } from './api.js';
 import { LoginPage } from './pages/Login.js';
 import { WalletPage } from './pages/Wallet.js';
 import { MinePage } from './pages/Mine.js';
@@ -17,20 +19,31 @@ const HEADER = [
 export default function App() {
   const [theme, setTheme] = useState<Theme>(loadTheme());
   useEffect(() => { applyTheme(theme); }, [theme]);
+  const { me } = useMe();
+
+  async function logout() {
+    try { await api.logout(); } catch { /* ignore */ }
+    window.location.href = '/';
+  }
 
   return (
     <HashRouter>
       <div className="app-shell">
         <header>
           <pre style={{ margin: 0 }}>{HEADER}</pre>
-          <div className="tagline">a tribute to the original rpow by hal finney</div>
+          <div className="tagline">a modern tribute to a tribute to the original rpow by hal finney</div>
           <nav style={{ marginTop: 8 }}>
             <NavLink to="/">[ wallet ]</NavLink>{' '}
             <NavLink to="/mine">[ mine ]</NavLink>{' '}
             <NavLink to="/send">[ send ]</NavLink>{' '}
             <NavLink to="/activity">[ activity ]</NavLink>{' '}
             <NavLink to="/ledger">[ ledger ]</NavLink>{' '}
-            <NavLink to="/login">[ login ]</NavLink>{' · '}
+            {me ? (
+              <button onClick={logout} title="end session">[ logout ]</button>
+            ) : (
+              <NavLink to="/login">[ login ]</NavLink>
+            )}
+            {' · '}
             <button onClick={() => setTheme(nextTheme(theme))} title="cycle theme">[ theme: {theme} ]</button>
           </nav>
         </header>
