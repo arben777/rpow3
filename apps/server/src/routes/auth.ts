@@ -64,6 +64,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get('/auth/verify', async (req, reply) => {
     const token = (req.query as Record<string, string>).token;
     if (!token) return reply.code(400).send({ error: 'BAD_REQUEST', message: 'missing token' });
+    const ip = (req.ip ?? '0.0.0.0');
 
     const tokenHash = hashToken(token);
     const { rows } = await app.pool.query(
@@ -79,6 +80,15 @@ export async function authRoutes(app: FastifyInstance) {
       `INSERT INTO users(email) VALUES($1)
        ON CONFLICT (email) DO UPDATE SET last_login_at = now()`,
       [match.email],
+    );
+
+    // First signup IP wins; later logins do not overwrite. Existing users
+    // (created before this migration) will simply have no row here until
+    // they're nudged through any future signup-only flow.
+    await app.pool.query(
+      `INSERT INTO user_signup_ips(email, ip_addr) VALUES($1, $2)
+       ON CONFLICT (email) DO NOTHING`,
+      [match.email, ip],
     );
 
     const sessionToken = signSession({ email: match.email }, app.config.sessionSecret, SESSION_TTL_SECONDS);

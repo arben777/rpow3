@@ -8,6 +8,7 @@ export async function claimRoutes(app: FastifyInstance) {
   app.get('/claim', async (req, reply) => {
     const token = (req.query as Record<string, string>).token;
     if (!token) return reply.code(400).send({ error: 'BAD_REQUEST', message: 'missing token' });
+    const ip = (req.ip ?? '0.0.0.0');
     const tokenHash = createHash('sha256').update(token).digest();
 
     type ClaimResult =
@@ -33,6 +34,15 @@ export async function claimRoutes(app: FastifyInstance) {
         `INSERT INTO users(email) VALUES($1)
          ON CONFLICT (email) DO UPDATE SET last_login_at = now()`,
         [pt.recipient_email],
+      );
+
+      // First signup IP wins. If this is the recipient's first contact with
+      // rpow3 (claiming a gift before ever requesting a magic link), we
+      // capture the IP from the claim click. Otherwise this is a no-op.
+      await c.query(
+        `INSERT INTO user_signup_ips(email, ip_addr) VALUES($1, $2)
+         ON CONFLICT (email) DO NOTHING`,
+        [pt.recipient_email, ip],
       );
 
       // Mint amount fresh tokens to recipient. These have parent_token_id=NULL

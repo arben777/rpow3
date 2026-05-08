@@ -65,10 +65,19 @@ export interface ActivityEntry {
 }
 export type ActivityResponse = ActivityEntry[];
 
+export interface UserGrowthPoint {
+  at: string;     // iso8601 hourly bucket
+  users: number;  // cumulative user count at that bucket
+}
+
 export interface LedgerResponse {
   total_minted: number;
   total_transferred: number;
   circulating_supply: number;
   current_difficulty_bits: number;
   user_count: number;
+  /** Hourly cumulative user-count time series. */
+  user_growth: UserGrowthPoint[];
+  /** Time it took the user count to most recently double, in seconds. null when total < 2. */
+  doubling_seconds: number | null;
 }
