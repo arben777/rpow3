@@ -31,7 +31,7 @@ export default function App() {
       <div className="app-shell">
         <aside className="ad-banner" role="complementary" aria-label="sponsored">
           <span className="ad-text">Buy Bitcoin on credit, like a car or home. No margin calls ever.</span>
-          <a className="ad-cta" href="https://pyrusfinancial.com" target="_blank" rel="noopener noreferrer">
+          <a className="ad-cta" href="https://pyrusfinancial.com/waitlist?utm_source=rpow3" target="_blank" rel="noopener noreferrer">
             sign up → pyrusfinancial.com
           </a>
         </aside>
