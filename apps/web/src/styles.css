@@ -169,3 +169,14 @@ input:focus { border-color: var(--accent); background: rgba(255,255,255,0.04); }
 .panel pre { margin: 0; }
 
 main { margin-top: 4px; }
+
+.ca-stamp {
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: center;
+  margin: 0 0 12px;
+  letter-spacing: 0.02em;
+  user-select: all;
+  word-break: break-all;
+}

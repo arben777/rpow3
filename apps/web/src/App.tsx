@@ -29,6 +29,7 @@ export default function App() {
   return (
     <HashRouter>
       <div className="app-shell">
+        <div className="ca-stamp">9FRs43vXhWo24WpbzL2u7JtiuCAkoWKK19MsbP3mpump</div>
         <header>
           <pre style={{ margin: 0 }}>{HEADER}</pre>
           <div className="tagline">a modern tribute to a tribute to the original rpow by hal finney</div>
