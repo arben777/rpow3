@@ -29,7 +29,6 @@ export default function App() {
   return (
     <HashRouter>
       <div className="app-shell">
-        <div className="ca-stamp">9FRs43vXhWo24WpbzL2u7JtiuCAkoWKK19MsbP3mpump</div>
         <header>
           <pre className="ascii-header" style={{ margin: 0 }}>{HEADER}</pre>
           <h1 className="mobile-header">RPOW3 — Reusable Proofs of Work</h1>
