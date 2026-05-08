@@ -27,6 +27,19 @@ export function createPool(databaseUrl: string): Pool {
     // Fail fast if the pool can't get a connection within 5s. Better
     // than hanging the request indefinitely.
     connectionTimeoutMillis: 5_000,
+    // Postgres-side guardrails so the *server* itself can self-heal from
+    // stuck queries and orphaned transactions:
+    //   - statement_timeout: 5s. Any single query that runs longer is
+    //     killed. Saves us from one slow query holding a connection
+    //     hostage for the whole pool.
+    //   - idle_in_transaction_session_timeout: 10s. If a transaction is
+    //     open but doing nothing (e.g. the app crashed mid-tx), Postgres
+    //     closes the session and releases its locks. This is the direct
+    //     fix for the "unexpected EOF on client connection with an open
+    //     transaction" log spam — Postgres won't hold dead transactions
+    //     open waiting for app-side reconnects.
+    statement_timeout: 5_000,
+    idle_in_transaction_session_timeout: 10_000,
   });
 }
 
