@@ -29,6 +29,13 @@ export default function App() {
   return (
     <HashRouter>
       <div className="app-shell">
+        <aside className="ad-banner" role="complementary" aria-label="sponsored">
+          <span className="ad-tag">[ AD ]</span>
+          <span className="ad-text">Buy Bitcoin on credit, like a car or home. No margin calls ever.</span>
+          <a className="ad-cta" href="https://pyrusfinancial.com" target="_blank" rel="noopener noreferrer">
+            sign up → pyrusfinancial.com
+          </a>
+        </aside>
         <header>
           <pre style={{ margin: 0 }}>{HEADER}</pre>
           <div className="tagline">a modern tribute to a tribute to the original rpow by hal finney</div>
