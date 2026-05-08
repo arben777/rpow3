@@ -63,11 +63,11 @@ describe('POST /mint', () => {
         [randomUUID(), `${ownerPrefix}-${i}@x.com`],
       );
     }
-    // Direct inserts bypass /mint, so the maintained supply counter (migration
-    // 005) doesn't auto-increment. Sync it here so cap-boundary tests see the
-    // expected supply.
+    // Direct inserts bypass /mint, so the supply sequence (migration 008)
+    // doesn't auto-advance. Sync it here so cap-boundary tests see the
+    // expected supply. generate_series(1, 0) is empty (no-op when n=0).
     await ctx.pool.query(
-      `UPDATE app_counters SET value = value + $1 WHERE name='minted_supply'`,
+      `SELECT nextval('minted_supply_seq') FROM generate_series(1, $1)`,
       [n],
     );
   }
