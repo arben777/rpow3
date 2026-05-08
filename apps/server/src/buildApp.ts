@@ -43,7 +43,15 @@ declare module 'fastify' {
 export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.test ? false : { level: 'info' },
-    disableRequestLogging: !!opts.test,
+    // Disable per-request access logging at any tier. Each request emits
+    // *two* info-level log lines (incoming + completed), and at viral
+    // scale (~7k miners polling /challenge, /mint, /me, /ledger) that's
+    // tens of thousands of lines per minute — well above Railway's log
+    // ingest cap, which then drops batches and yells at us about it.
+    // Errors and startup logs still flow through; we just stop logging
+    // every successful 200. If you ever need per-request tracing for
+    // debugging, flip this to opts.test for the duration of the run.
+    disableRequestLogging: true,
     // Honor X-Forwarded-For across the Railway+Cloudflare proxy chain so
     // req.ip is the real client. Without this, req.ip is the internal proxy
     // address and the per-IP rate limit on /auth/request is useless.
