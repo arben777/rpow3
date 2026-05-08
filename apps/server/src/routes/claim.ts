@@ -46,10 +46,12 @@ export async function claimRoutes(app: FastifyInstance) {
       );
 
       // Mint amount fresh tokens to recipient. These have parent_token_id=NULL
-      // so they count as "minted" supply for /ledger purposes and must
-      // increment app_counters.minted_supply (migration 005). No cap check
+      // so they count as "minted" supply for cap accounting and must
+      // advance the minted_supply sequence (migration 008). No cap check
       // here: the sender's tokens were already burned; refusing to claim
-      // would strand them.
+      // would strand them. (If claims push the sequence past the cap,
+      // future /mint calls will SUPPLY_EXHAUSTED — same behavior as
+      // before.)
       const issuedAt = new Date();
       const ownerHash = createHash('sha256').update(pt.recipient_email).digest('hex');
       for (let i = 0; i < pt.amount; i++) {
@@ -64,8 +66,11 @@ export async function claimRoutes(app: FastifyInstance) {
           [newId, pt.recipient_email, issuedAt, sig],
         );
       }
+      // Advance the sequence by `amount` in a single round-trip.
+      // generate_series(1, amount) produces `amount` rows, each
+      // calling nextval() exactly once.
       await c.query(
-        `UPDATE app_counters SET value = value + $1 WHERE name='minted_supply'`,
+        `SELECT nextval('minted_supply_seq') FROM generate_series(1, $1)`,
         [pt.amount],
       );
 

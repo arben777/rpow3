@@ -16,17 +16,13 @@ export async function mintRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: 'BAD_REQUEST', message: 'invalid body' });
 
     const result = await withTx(app.pool, async (c) => {
-      // No advisory lock here. The cap-check uses an atomic UPDATE on
-      // app_counters with a `value < $cap` predicate (below), which is
-      // race-free on its own — Postgres's row-level lock during UPDATE
-      // serializes only the cap-counter row, not all mints globally.
-      // The previous advisory_xact_lock made every mint wait behind a
-      // single global mutex, which under viral load (~250 mints/sec
-      // attempted) became the dominant bottleneck and made any orphan
-      // transaction (e.g. an EOF mid-mint) cascade into a pile-up of
-      // waiting mints. Removing it lets concurrent users mint in
-      // parallel; the only contention is the brief row lock during the
-      // counter UPDATE.
+      // No advisory lock here, and no row-level lock either. The cap is
+      // enforced via a Postgres sequence (migration 008): nextval() is
+      // atomic and uses an internal lock manager that doesn't contend
+      // with concurrent writers, unlike the previous UPDATE on a single
+      // app_counters row which serialized every mint behind one tuple
+      // and drove the DB into statement-timeout pile-ups under viral
+      // load.
 
       const { rows } = await c.query<{ id: string; nonce_prefix: Buffer; difficulty_bits: number; expires_at: Date; claimed_at: Date | null }>(
         'SELECT id, nonce_prefix, difficulty_bits, expires_at, claimed_at FROM challenges WHERE id=$1 AND user_email=$2 FOR UPDATE',
@@ -42,14 +38,15 @@ export async function mintRoutes(app: FastifyInstance) {
         return { error: 'INVALID_SOLUTION' as const, message: 'hash does not meet difficulty' };
       }
 
-      // Atomic cap-check + increment via maintained counter (migration 005).
-      // count(*) on a growing tokens table was the lock-hold bottleneck.
-      const supplyResult = await c.query(
-        `UPDATE app_counters SET value = value + 1
-         WHERE name='minted_supply' AND value < $1`,
-        [app.config.mintMaxSupply],
+      // Atomic cap-check + increment via sequence (migration 008).
+      // nextval() is contention-free; if it returns a value past the cap
+      // we abort. Note: the slot is "burned" on rejection (sequences
+      // don't roll back), but every subsequent attempt also fails the
+      // cap check, so behavior remains correct.
+      const supplyResult = await c.query<{ v: string }>(
+        `SELECT nextval('minted_supply_seq')::text AS v`,
       );
-      if (supplyResult.rowCount === 0) {
+      if (BigInt(supplyResult.rows[0]!.v) > BigInt(app.config.mintMaxSupply)) {
         return { error: 'SUPPLY_EXHAUSTED' as const, message: '21M cap reached' };
       }
 
