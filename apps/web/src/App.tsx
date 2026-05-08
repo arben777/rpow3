@@ -29,12 +29,6 @@ export default function App() {
   return (
     <HashRouter>
       <div className="app-shell">
-        <aside className="ad-banner" role="complementary" aria-label="sponsored">
-          <span className="ad-text">Bitcoin's missing primitive.</span>
-          <a className="ad-cta" href="https://pyrusfinancial.com/waitlist?utm_source=rpow3" target="_blank" rel="noopener noreferrer">
-            → pyrusfinancial.com
-          </a>
-        </aside>
         <header>
           <pre style={{ margin: 0 }}>{HEADER}</pre>
           <div className="tagline">a modern tribute to a tribute to the original rpow by hal finney</div>
