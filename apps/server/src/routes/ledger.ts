@@ -23,21 +23,24 @@ export async function ledgerRoutes(app: FastifyInstance) {
       { rows: users },
       { rows: growthRows },
       { rows: doublingRows },
+      { rows: firstSignupRows },
     ] = await Promise.all([
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
       app.pool.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
-      // Hourly cumulative user count. Window function adds new_users into a
-      // running total per bucket.
+      // 5-minute cumulative user count. Window function adds new_users into
+      // a running total per bin. date_bin (Postgres 14+) gives evenly-aligned
+      // 5-min buckets anchored at epoch.
       app.pool.query<{ at: Date; users: number }>(`
-        WITH hourly AS (
-          SELECT date_trunc('hour', created_at) AS bucket, count(*) AS new_users
+        WITH binned AS (
+          SELECT date_bin('5 minutes', created_at, TIMESTAMPTZ '2000-01-01') AS bucket,
+                 count(*) AS new_users
           FROM users GROUP BY bucket
         )
         SELECT bucket AS at,
                sum(new_users) OVER (ORDER BY bucket)::int AS users
-        FROM hourly ORDER BY bucket
+        FROM binned ORDER BY bucket
       `),
       // Doubling time: with N users, the user at offset floor((N-1)/2) was
       // signing up when the count crossed N/2. (now - that.created_at) is
@@ -51,6 +54,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
         OFFSET (SELECT FLOOR((n - 1) / 2.0)::int FROM t)
         LIMIT 1
       `),
+      app.pool.query<{ at: Date | null }>(`SELECT min(created_at) AS at FROM users`),
     ]);
     const totalMinted = minted[0]!.n;
     const opts = {
@@ -65,6 +69,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
     const doublingSeconds = doublingRows[0]?.seconds != null
       ? Number(doublingRows[0]!.seconds)
       : null;
+    const firstSignupAt = firstSignupRows[0]?.at ? firstSignupRows[0]!.at!.toISOString() : null;
     return {
       total_minted: totalMinted,
       total_transferred: transferred[0]!.n,
@@ -80,6 +85,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
       is_capped: info.isCapped,
       user_growth: growth,
       doubling_seconds: doublingSeconds,
+      first_signup_at: firstSignupAt,
     };
   }
 
