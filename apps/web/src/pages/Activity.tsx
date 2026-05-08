@@ -15,10 +15,11 @@ export function ActivityPage() {
 {items.length === 0 ? '  (no activity yet)' : items.map(e => {
   const when = e.at.replace('T', ' ').slice(0, 19);
   const who = e.counterparty_email ?? '';
-  const tag = e.type.toUpperCase().padEnd(8);
-  const sign = e.type === 'send' || e.type === 'burn' ? '-' : '+';
+  const tag = e.type.toUpperCase().padEnd(10);
+  const negative = e.type === 'send' || e.type === 'burn' || e.type === 'boost' || e.type === 'graveyard';
+  const sign = negative ? '-' : '+';
   const amt = `${sign}${e.amount}`;
-  return `  ${when}  ${tag}  ${amt.padStart(4)}  ${who}`;
+  return `  ${when}  ${tag}  ${amt.padStart(5)}  ${who}`;
 }).join('\n')}
       </pre>
     </Panel>

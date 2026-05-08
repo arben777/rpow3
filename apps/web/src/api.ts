@@ -3,6 +3,7 @@ import type {
   ChallengeResponse, MintRequestBody, MintResponse,
   SendRequestBody, SendResponse, ActivityResponse, LedgerResponse, ApiError,
   PostRequestBody, PostResponse, PostsResponse,
+  BoostRequestBody, BoostResponse, GraveyardRequestBody, GraveyardResponse,
 } from '@rpow/shared';
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
@@ -32,11 +33,14 @@ export const api = {
   activity: () => call<ActivityResponse>('GET', '/activity'),
   ledger: () => call<LedgerResponse>('GET', '/ledger'),
   post: (b: PostRequestBody) => call<PostResponse>('POST', '/post', b),
-  posts: (q?: { limit?: number; before?: string }) => {
+  posts: (q?: { limit?: number }) => {
     const p = new URLSearchParams();
     if (q?.limit) p.set('limit', String(q.limit));
-    if (q?.before) p.set('before', q.before);
     const qs = p.toString();
     return call<PostsResponse>('GET', `/posts${qs ? `?${qs}` : ''}`);
   },
+  boost: (postId: string, b: BoostRequestBody) =>
+    call<BoostResponse>('POST', `/post/${encodeURIComponent(postId)}/boost`, b),
+  graveyard: (postId: string, b: GraveyardRequestBody) =>
+    call<GraveyardResponse>('POST', `/post/${encodeURIComponent(postId)}/graveyard`, b),
 };

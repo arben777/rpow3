@@ -59,7 +59,7 @@ export type ApiErrorCode =
 export interface ApiError { error: ApiErrorCode; message: string; retry_after?: number }
 
 export interface ActivityEntry {
-  type: 'mint' | 'send' | 'receive' | 'burn';
+  type: 'mint' | 'send' | 'receive' | 'burn' | 'boost' | 'graveyard';
   amount: number;
   counterparty_email?: string;
   at: string; // iso8601
@@ -82,9 +82,36 @@ export interface PostRequestBody {
 export interface PostSummary {
   id: string;
   author_email: string;
-  body: string;
+  /** null when the post has been graveyarded — body is wiped on kill. */
+  body: string | null;
   token_id: string;
   created_at: string; // iso8601
+  /** Total RPOW burned on this post (1 for the original + every boost). */
+  stake: number;
+  graveyard_at: string | null;
+  graveyard_by_email: string | null;
+  graveyard_stake: number | null;
 }
 export interface PostResponse { ok: true; post: PostSummary }
 export type PostsResponse = PostSummary[];
+
+export interface BoostRequestBody {
+  amount: number;
+  idempotency_key: string;
+}
+export interface BoostResponse {
+  ok: true;
+  post_id: string;
+  new_stake: number;
+  action_id: string;
+}
+
+export interface GraveyardRequestBody {
+  idempotency_key: string;
+}
+export interface GraveyardResponse {
+  ok: true;
+  post_id: string;
+  graveyard_stake: number;
+  action_id: string;
+}
