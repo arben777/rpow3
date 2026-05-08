@@ -16,7 +16,8 @@ export function ActivityPage() {
   const when = e.at.replace('T', ' ').slice(0, 19);
   const who = e.counterparty_email ?? '';
   const tag = e.type.toUpperCase().padEnd(8);
-  const amt = `${e.type === 'send' ? '-' : '+'}${e.amount}`;
+  const sign = e.type === 'send' || e.type === 'burn' ? '-' : '+';
+  const amt = `${sign}${e.amount}`;
   return `  ${when}  ${tag}  ${amt.padStart(4)}  ${who}`;
 }).join('\n')}
       </pre>

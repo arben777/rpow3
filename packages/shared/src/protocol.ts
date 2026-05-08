@@ -9,6 +9,7 @@ export interface MeResponse {
   minted: number;
   sent: number;
   received: number;
+  burned: number;
 }
 
 export interface ChallengeResponse {
@@ -58,7 +59,7 @@ export type ApiErrorCode =
 export interface ApiError { error: ApiErrorCode; message: string; retry_after?: number }
 
 export interface ActivityEntry {
-  type: 'mint' | 'send' | 'receive';
+  type: 'mint' | 'send' | 'receive' | 'burn';
   amount: number;
   counterparty_email?: string;
   at: string; // iso8601
@@ -68,7 +69,22 @@ export type ActivityResponse = ActivityEntry[];
 export interface LedgerResponse {
   total_minted: number;
   total_transferred: number;
+  total_burned: number;
   circulating_supply: number;
   current_difficulty_bits: number;
   user_count: number;
 }
+
+export interface PostRequestBody {
+  body: string;
+  idempotency_key: string;
+}
+export interface PostSummary {
+  id: string;
+  author_email: string;
+  body: string;
+  token_id: string;
+  created_at: string; // iso8601
+}
+export interface PostResponse { ok: true; post: PostSummary }
+export type PostsResponse = PostSummary[];

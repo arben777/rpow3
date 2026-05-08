@@ -13,6 +13,7 @@ export function LedgerPage() {
         <pre style={{ margin: 0 }}>
 {`  TOTAL MINTED        : ${d.total_minted}
   TOTAL TRANSFERRED   : ${d.total_transferred}
+  TOTAL BURNED        : ${d.total_burned}
   CIRCULATING SUPPLY  : ${d.circulating_supply}
   CURRENT DIFFICULTY  : ${d.current_difficulty_bits} trailing zero bits
   USER COUNT          : ${d.user_count}

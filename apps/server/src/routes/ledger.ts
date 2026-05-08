@@ -16,11 +16,12 @@ export async function ledgerRoutes(app: FastifyInstance) {
   let inflight: Promise<unknown> | null = null;
 
   async function refresh() {
-    const [{ rows: minted }, { rows: transferred }, { rows: circ }, { rows: users }] = await Promise.all([
+    const [{ rows: minted }, { rows: transferred }, { rows: circ }, { rows: users }, { rows: burned }] = await Promise.all([
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
       app.pool.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
+      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='BURNED'`),
     ]);
     const totalMinted = minted[0]!.n;
     const opts = {
@@ -34,6 +35,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
     return {
       total_minted: totalMinted,
       total_transferred: transferred[0]!.n,
+      total_burned: burned[0]!.n,
       circulating_supply: circ[0]!.n,
       current_difficulty_bits: currentDifficultyBits,
       user_count: users[0]!.n,

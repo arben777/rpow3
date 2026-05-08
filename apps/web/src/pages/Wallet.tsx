@@ -28,11 +28,13 @@ export function WalletPage() {
   > MINTED      : ${String(me.minted).padStart(4, '0')}
   > SENT        : ${String(me.sent).padStart(4, '0')}
   > RECEIVED    : ${String(me.received).padStart(4, '0')}
+  > BURNED      : ${String(me.burned).padStart(4, '0')}
 `}
       </pre>
       <div style={{ marginTop: 8 }}>
         <Link to="/mine">[ MINE ]</Link>{' '}
         <Link to="/send">[ SEND ]</Link>{' '}
+        <Link to="/wall">[ WALL ]</Link>{' '}
         <Link to="/activity">[ ACTIVITY ]</Link>{' '}
         <button onClick={logout}>[ LOGOUT ]</button>
       </div>

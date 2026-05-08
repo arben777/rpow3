@@ -14,6 +14,9 @@ export async function activityRoutes(app: FastifyInstance) {
       UNION ALL
       SELECT 'receive' AS type, amount, sender_email AS counterparty_email, created_at AS at
       FROM transfers WHERE recipient_email=$1
+      UNION ALL
+      SELECT 'burn' AS type, 1 AS amount, NULL::text AS counterparty_email, created_at AS at
+      FROM posts WHERE author_email=$1
       ORDER BY at DESC LIMIT 100`;
     const { rows } = await app.pool.query(sql, [s.email]);
     return rows.map(r => ({ ...r, at: r.at.toISOString() }));

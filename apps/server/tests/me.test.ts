@@ -23,6 +23,6 @@ describe('GET /me', () => {
     const cookie = await login(ctx, 'a@b.com');
     const res = await ctx.app.inject({ method: 'GET', url: '/me', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ email: 'a@b.com', balance: 0, minted: 0, sent: 0, received: 0 });
+    expect(res.json()).toEqual({ email: 'a@b.com', balance: 0, minted: 0, sent: 0, received: 0, burned: 0 });
   });
 });

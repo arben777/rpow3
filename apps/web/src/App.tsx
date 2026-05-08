@@ -9,6 +9,8 @@ import { MinePage } from './pages/Mine.js';
 import { SendPage } from './pages/Send.js';
 import { ActivityPage } from './pages/Activity.js';
 import { LedgerPage } from './pages/Ledger.js';
+import { WallPage } from './pages/Wall.js';
+import { PostPage } from './pages/Post.js';
 
 const HEADER = [
   '+======================================================================+',
@@ -36,6 +38,7 @@ export default function App() {
             <NavLink to="/">[ wallet ]</NavLink>{' '}
             <NavLink to="/mine">[ mine ]</NavLink>{' '}
             <NavLink to="/send">[ send ]</NavLink>{' '}
+            <NavLink to="/wall">[ wall ]</NavLink>{' '}
             <NavLink to="/activity">[ activity ]</NavLink>{' '}
             <NavLink to="/ledger">[ ledger ]</NavLink>{' '}
             {me ? (
@@ -55,6 +58,8 @@ export default function App() {
             <Route path="/send" element={<SendPage />} />
             <Route path="/activity" element={<ActivityPage />} />
             <Route path="/ledger" element={<LedgerPage />} />
+            <Route path="/wall" element={<WallPage />} />
+            <Route path="/post" element={<PostPage />} />
           </Routes>
         </main>
       </div>
