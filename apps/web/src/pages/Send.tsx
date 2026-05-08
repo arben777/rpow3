@@ -58,7 +58,7 @@ export function SendPage() {
       {status === 'sent' && pending && (
         <pre style={{ margin: '12px 0 0' }}>
 {`  + PENDING CLAIM
-  ${sentTo} does not have an rpow2 account yet.
+  ${sentTo} does not have an rpow3 account yet.
   An email has been sent inviting them to claim ${sentAmt} RPOW.
   Your tokens are reserved until they claim or the link expires (30d).
   transfer id: ${transferId}`}

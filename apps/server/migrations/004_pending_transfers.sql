@@ -1,4 +1,4 @@
--- Pending transfers: when a sender sends to an email that has no rpow2 account.
+-- Pending transfers: when a sender sends to an email that has no rpow3 account.
 -- Tokens are invalidated on the sender side immediately; the recipient receives
 -- an email with a one-time claim link. On claim, an account is auto-created and
 -- `amount` fresh tokens are minted to the recipient.

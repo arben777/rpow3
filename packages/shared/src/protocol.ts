@@ -40,7 +40,7 @@ export interface SendResponse {
   transferred: number;
   recipient_email: string;
   transfer_id: string;
-  /** True when the recipient had no rpow2 account; an email was sent for them to claim. */
+  /** True when the recipient had no rpow3 account; an email was sent for them to claim. */
   pending?: boolean;
 }
 

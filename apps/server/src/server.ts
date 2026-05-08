@@ -39,4 +39,4 @@ const app = await buildApp({
   },
 });
 await app.listen({ host: '0.0.0.0', port: env.PORT });
-app.log.info(`rpow2 server listening on :${env.PORT}`);
+app.log.info(`rpow3 server listening on :${env.PORT}`);

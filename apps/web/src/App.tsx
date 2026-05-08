@@ -12,7 +12,7 @@ import { LedgerPage } from './pages/Ledger.js';
 
 const HEADER = [
   '+======================================================================+',
-  '|                   RPOW2 - Reusable Proofs of Work                    |',
+  '|                   RPOW3 - Reusable Proofs of Work                    |',
   '+======================================================================+',
 ].join('\n');
 

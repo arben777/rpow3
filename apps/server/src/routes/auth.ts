@@ -53,9 +53,9 @@ export async function authRoutes(app: FastifyInstance) {
     const link = `${app.config.magicLinkBaseUrl}/auth/verify?token=${token}`;
     await app.mailer.send({
       to: email,
-      subject: 'rpow2 — your magic link',
+      subject: 'rpow3 — your magic link',
       text: `Click to sign in:\n${link}\n\nLink expires in 15 minutes.`,
-      html: `<p>Click to sign in to <a href="${link}">rpow2</a>.</p><p><a href="${link}">${link}</a></p><p>Link expires in 15 minutes.</p>`,
+      html: `<p>Click to sign in to <a href="${link}">rpow3</a>.</p><p><a href="${link}">${link}</a></p><p>Link expires in 15 minutes.</p>`,
     });
 
     return { ok: true, cooldown_seconds: 30 };

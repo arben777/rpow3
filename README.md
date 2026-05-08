@@ -1,6 +1,6 @@
-# rpow2
+# rpow3
 
-> A tribute to the original RPOW by Hal Finney.
+> A tribute to the original RPOW by Hal Finney. Forked from frkrueger/rpow and hardened for scale.
 
 A faithful modern recreation of Hal Finney's [Reusable Proofs of Work](https://nakamotoinstitute.org/finney/rpow/) (2004). Magic-link auth, hashcash mining (~30s on a modern MacBook), Ed25519-signed tokens, email-keyed transfers, public ledger.
 
@@ -20,7 +20,7 @@ To run the stack with low difficulty for hands-on testing:
 ```bash
 # In one terminal
 DATABASE_URL=postgres://postgres:p@localhost:55432/postgres \
-RESEND_API_KEY=re_test EMAIL_FROM='rpow2 <no-reply@rpow2.com>' \
+RESEND_API_KEY=re_test EMAIL_FROM='rpow3 <no-reply@rpow3.com>' \
 SESSION_SECRET=$(openssl rand -hex 32) \
 MAGIC_LINK_BASE_URL=http://localhost:8080 WEB_ORIGIN=http://localhost:5173 \
 DIFFICULTY_BITS=20 DIFFICULTY_FLOOR=8 \
@@ -34,10 +34,10 @@ npm --workspace @rpow/web run dev
 
 ## Deploy
 
-- Server: Fly.io (`api.rpow2.com`)
-- Web: Netlify (`rpow2.com`)
-- DB: Neon Postgres (serverless)
+- Server: Railway (`api.rpow3.com`)
+- Web: Railway (`rpow3.com`)
+- DB: Railway Postgres
 - Email: Resend
-- DNS: GoDaddy (registrar)
+- DNS: Cloudflare (registrar + proxy + DNS)
 
 See `docs/RUNBOOK.md` for operator instructions.
