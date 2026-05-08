@@ -5,6 +5,7 @@ build/
 .cache/
 .env
 .env.local
+.env.vps
 *.log
 .DS_Store
 .fly/

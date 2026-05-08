@@ -77,9 +77,18 @@ Verification: output contains at minimum these names — `DATABASE_URL`, `RESEND
 
 - [ ] **Step 0.3: Capture actual secret values from Fly**
 
+Fly secrets are injected into the running app process, NOT the SSH shell. Read them from the node process's `/proc/<pid>/environ`:
+
 ```
-local$ flyctl ssh console --app rpow2-server -C "env" | grep -E '^(SESSION_SECRET|RPOW_SIGNING|RESEND_API_KEY|EMAIL_FROM|DIFFICULTY|MINT_|TURNSTILE_|MAGIC_LINK_BASE_URL|WEB_ORIGIN)=' > /Users/fredkrueger/rpow/.env.vps
+local$ NODE_PID=$(flyctl ssh console --app rpow2-server -C 'pidof node' 2>/dev/null | tr -d '[:space:]') && \
+  flyctl ssh console --app rpow2-server -C "cat /proc/$NODE_PID/environ" 2>/dev/null \
+    | tr '\0' '\n' \
+    | grep -E '^(DATABASE_URL|SESSION_SECRET|RPOW_SIGNING_PRIVATE_KEY_HEX|RPOW_SIGNING_PUBLIC_KEY_HEX|RESEND_API_KEY|EMAIL_FROM|DIFFICULTY_BITS|DIFFICULTY_FLOOR|MINT_EPOCH_SIZE|MINT_MAX_SUPPLY|TURNSTILE_SECRET|MAGIC_LINK_BASE_URL|WEB_ORIGIN)=' \
+    > /Users/fredkrueger/rpow/.env.vps && \
+  chmod 600 /Users/fredkrueger/rpow/.env.vps
 ```
+
+> Earlier draft used `flyctl ssh console -C "env"` — that doesn't see the secrets, since they're injected to the runtime process only. The `/proc/<pid>/environ` form works.
 
 Verification: file exists, mode is 600 (`chmod 600 /Users/fredkrueger/rpow/.env.vps`), contains a `SESSION_SECRET=...` line and a `RPOW_SIGNING_PRIVATE_KEY_HEX=...` line.
 
