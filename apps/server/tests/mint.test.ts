@@ -63,6 +63,13 @@ describe('POST /mint', () => {
         [randomUUID(), `${ownerPrefix}-${i}@x.com`],
       );
     }
+    // Direct inserts bypass /mint, so the maintained supply counter (migration
+    // 005) doesn't auto-increment. Sync it here so cap-boundary tests see the
+    // expected supply.
+    await ctx.pool.query(
+      `UPDATE app_counters SET value = value + $1 WHERE name='minted_supply'`,
+      [n],
+    );
   }
 
   it('refuses with 410 SUPPLY_EXHAUSTED when cap is reached between challenge and mint', async () => {

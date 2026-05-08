@@ -34,10 +34,14 @@ export async function mintRoutes(app: FastifyInstance) {
         return { error: 'INVALID_SOLUTION' as const, message: 'hash does not meet difficulty' };
       }
 
-      const supplyRows = await c.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`,
+      // Atomic cap-check + increment via maintained counter (migration 005).
+      // count(*) on a growing tokens table was the lock-hold bottleneck.
+      const supplyResult = await c.query(
+        `UPDATE app_counters SET value = value + 1
+         WHERE name='minted_supply' AND value < $1`,
+        [app.config.mintMaxSupply],
       );
-      if (supplyRows.rows[0]!.n >= app.config.mintMaxSupply) {
+      if (supplyResult.rowCount === 0) {
         return { error: 'SUPPLY_EXHAUSTED' as const, message: '21M cap reached' };
       }
 

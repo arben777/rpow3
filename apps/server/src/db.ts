@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export function createPool(databaseUrl: string): Pool {
-  return new Pool({ connectionString: databaseUrl, max: 10 });
+  // Postgres default max_connections is 100; 30 leaves plenty of headroom
+  // for backups (pg_dump uses 1) and the postgres role's own sessions.
+  // 10 was bottlenecking under thousands of concurrent users.
+  return new Pool({ connectionString: databaseUrl, max: 30 });
 }
 
 export async function withClient<T>(pool: Pool, fn: (c: PoolClient) => Promise<T>): Promise<T> {
