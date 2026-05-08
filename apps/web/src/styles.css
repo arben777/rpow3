@@ -169,32 +169,3 @@ input:focus { border-color: var(--accent); background: rgba(255,255,255,0.04); }
 .panel pre { margin: 0; }
 
 main { margin-top: 4px; }
-
-.ad-banner {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 14px;
-  align-items: baseline;
-  padding: 8px 14px;
-  margin: 0 0 16px;
-  border: 1px solid var(--accent);
-  background: var(--accent-dim);
-  border-radius: 2px;
-  font-size: 13px;
-  line-height: 1.4;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.ad-banner .ad-text {
-  color: var(--fg);
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ad-banner .ad-cta {
-  color: var(--accent);
-  border-bottom: 1px dotted var(--accent);
-  flex: 0 0 auto;
-}
-.ad-banner .ad-cta:hover { border-bottom-style: solid; }
