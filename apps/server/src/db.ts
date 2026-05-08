@@ -6,10 +6,28 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export function createPool(databaseUrl: string): Pool {
-  // Postgres default max_connections is 100; 30 leaves plenty of headroom
-  // for backups (pg_dump uses 1) and the postgres role's own sessions.
-  // 10 was bottlenecking under thousands of concurrent users.
-  return new Pool({ connectionString: databaseUrl, max: 30 });
+  // Postgres' max_connections is finite (100 by default; many hosted
+  // tiers cap lower). With multiple Railway replicas each opening their
+  // own pool, the total app-side connection count is `replicas × max`.
+  // Under viral load on a small Postgres tier this blew past the cap and
+  // Postgres started rejecting with `FATAL: too many clients already`.
+  //
+  // Tunable via DB_POOL_MAX. Default 15 fits comfortably under any
+  // hobby-tier max_connections even with 2-4 replicas. Once you've moved
+  // to a connection pooler (PgBouncer / Neon's built-in pooler) or
+  // upgraded the Postgres tier, bump this back up.
+  const max = Math.max(1, Number(process.env.DB_POOL_MAX ?? 15));
+  return new Pool({
+    connectionString: databaseUrl,
+    max,
+    // Release idle connections so Postgres can reclaim the slot. Without
+    // this, idle connections sit forever and the second replica can't
+    // open new ones when its own users come online.
+    idleTimeoutMillis: 30_000,
+    // Fail fast if the pool can't get a connection within 5s. Better
+    // than hanging the request indefinitely.
+    connectionTimeoutMillis: 5_000,
+  });
 }
 
 export async function withClient<T>(pool: Pool, fn: (c: PoolClient) => Promise<T>): Promise<T> {
