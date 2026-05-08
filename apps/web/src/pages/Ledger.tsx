@@ -223,23 +223,11 @@ function GrowthChart({
     `${i === 0 ? 'M' : 'L'}${sx(xs[i]!).toFixed(1)},${sy(p.users).toFixed(1)}`,
   ).join(' ');
 
-  let fitPath = '';
-  if (fit) {
-    const samples = 100;
-    const segs: string[] = [];
-    // Fit line spans only the window the fit was actually computed over —
-    // honest visualization. Outside that range we don't claim the rate held.
-    const fitStart = Math.max(x0, fit.windowFromMs);
-    const fitEnd = x1;
-    const fitRange = Math.max(1, fitEnd - fitStart);
-    for (let i = 0; i <= samples; i++) {
-      const t = fitStart + (fitRange * i) / samples;
-      const tHours = (t - fit.ms0) / 3600000;
-      const y = fit.a * Math.exp(fit.b * tHours);
-      segs.push(`${i === 0 ? 'M' : 'L'}${sx(t).toFixed(1)},${sy(Math.min(y, yMax * 1.5)).toFixed(1)}`);
-    }
-    fitPath = segs.join(' ');
-  }
+  // We deliberately don't draw the fit curve. Plotting y = a·e^(b·t) from
+  // the regression always overshoots in the early flat plateau (the
+  // intercept `a` is "what the curve would be at t=0 IF the current rate
+  // had always held", not "where the curve actually started"). The number
+  // people care about is the slope; that lives in the info box.
 
   // Annotation positions — smart-place "now" above or below depending on lastY.
   const firstMs = firstSignupAt ? new Date(firstSignupAt).getTime() : x0;
@@ -259,12 +247,7 @@ function GrowthChart({
 
   // Info box (top-left, inside the plot)
   const infoX = pad.left + 14, infoY = pad.top + 14;
-  const infoW = 280, infoH = 64;
-
-  // Legend (bottom-right, inside the plot)
-  const legendW = 380, legendH = 50;
-  const legendX = pad.left + innerW - legendW - 6;
-  const legendY = pad.top + innerH - legendH - 6;
+  const infoW = 320, infoH = 64;
 
   return (
     <div className="chart-scroll" style={{ overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
@@ -282,11 +265,6 @@ function GrowthChart({
               stroke="var(--dimmer)" strokeWidth={1} opacity={0.2} />
       ))}
 
-      {/* fit (dashed, behind actual) */}
-      {fit && (
-        <path d={fitPath} fill="none" stroke="var(--error)" strokeWidth={1.4}
-              strokeDasharray="6 5" opacity={0.85} />
-      )}
       {/* actual data */}
       <path d={dataPath} fill="none" stroke="var(--accent)" strokeWidth={1.8}
             strokeLinejoin="round" strokeLinecap="round" />
@@ -363,25 +341,7 @@ function GrowthChart({
             fit slope b = {fit.b.toFixed(3)} /h
           </text>
           <text x={infoX + 12} y={infoY + 54} fill="var(--dim)" fontSize={10.5} fontFamily="inherit">
-            (weighted, last {Math.round((Date.now() - fit.windowFromMs) / 3600000 * 10) / 10} h of data)
-          </text>
-        </g>
-      )}
-
-      {/* legend (bottom-right) */}
-      {fit && (
-        <g>
-          <rect x={legendX} y={legendY} width={legendW} height={legendH}
-                fill="rgba(0,0,0,0.55)" stroke="var(--accent-dim)" strokeWidth={1} rx={3} />
-          <line x1={legendX + 12} y1={legendY + 16} x2={legendX + 36} y2={legendY + 16}
-                stroke="var(--accent)" strokeWidth={1.8} />
-          <text x={legendX + 44} y={legendY + 20} fill="var(--fg)" fontSize={11.5} fontFamily="inherit">
-            actual users
-          </text>
-          <line x1={legendX + 12} y1={legendY + 36} x2={legendX + 36} y2={legendY + 36}
-                stroke="var(--error)" strokeWidth={1.4} strokeDasharray="6 5" />
-          <text x={legendX + 44} y={legendY + 40} fill="var(--fg)" fontSize={11.5} fontFamily="inherit">
-            fit: y = {fit.a.toFixed(2)}·e^({fit.b.toFixed(3)}·t)  (R²={fit.r2.toFixed(3)})
+            (weighted, last {Math.round((Date.now() - fit.windowFromMs) / 3600000 * 10) / 10} h, R²={fit.r2.toFixed(3)})
           </text>
         </g>
       )}
