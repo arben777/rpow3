@@ -267,8 +267,10 @@ function GrowthChart({
   const legendY = pad.top + innerH - legendH - 6;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img"
-         aria-label="user growth chart" style={{ display: 'block' }}>
+    <div className="chart-scroll" style={{ overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} role="img"
+         aria-label="user growth chart"
+         style={{ display: 'block', width: '100%', minWidth: 600, height: 'auto' }}>
       {/* y-axis grid */}
       {yTicks.map(y => (
         <line key={`gy-${y}`} x1={pad.left} y1={sy(y)} x2={pad.left + innerW} y2={sy(y)}
@@ -384,6 +386,7 @@ function GrowthChart({
         </g>
       )}
     </svg>
+    </div>
   );
 }
 

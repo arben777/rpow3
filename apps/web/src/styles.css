@@ -169,3 +169,102 @@ input:focus { border-color: var(--accent); background: rgba(255,255,255,0.04); }
 .panel pre { margin: 0; }
 
 main { margin-top: 4px; }
+
+/* Mobile-only elements are hidden on desktop. */
+.mobile-header,
+.panel-title-mobile { display: none; }
+
+/* ------------------------------------------------------------------ */
+/* Mobile layout (≤ 720px)
+   The desktop look relies on 70-character ASCII borders rendered in
+   <pre>. On phones those overflow, so we hide them and substitute
+   CSS borders + a simple title. The terminal feel is preserved by
+   keeping the monospace font and accent colors. */
+/* ------------------------------------------------------------------ */
+@media (max-width: 720px) {
+  body {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .app-shell {
+    margin: 12px auto 32px;
+    padding: 0 10px;
+  }
+
+  /* Wide pre content (ledger lines, ASCII header tagline, etc.) becomes
+     horizontally scrollable inside its container. The user can swipe
+     to see overflow without forcing the whole page to scroll. */
+  pre {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tap targets — bump padding so buttons clear ~38px tall. */
+  button {
+    padding: 8px 14px;
+    min-height: 38px;
+  }
+
+  /* iOS auto-zooms inputs whose font-size < 16px on focus. Force 16px
+     to suppress the zoom; pad for fingers; cap width at the parent. */
+  input {
+    font-size: 16px;
+    padding: 9px 10px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Nav becomes a wrapping flex row so links don't run off the edge. */
+  .site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+
+  /* Hide the desktop ASCII art and reveal the mobile title. */
+  .ascii-header { display: none; }
+  .mobile-header {
+    display: block;
+    color: var(--accent);
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: 0.04em;
+  }
+
+  /* Replace ASCII panel borders with CSS borders, and surface the
+     title via a real heading (the title text was previously baked
+     into the ASCII border and would disappear when we hid it). */
+  .panel-border { display: none; }
+  .panel-section {
+    border: 1px solid var(--accent-dim);
+    border-radius: 3px;
+    margin: 12px 0;
+    background: rgba(255, 255, 255, 0.01);
+  }
+  .panel-title-mobile {
+    display: block;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    margin: 0;
+    border-bottom: 1px solid var(--accent-dim);
+  }
+  .panel-body { padding: 10px 12px; }
+
+  /* SVG chart: minimum legible width, scrolls horizontally if narrower. */
+  .chart-scroll svg {
+    min-width: 600px;
+  }
+}
+
+/* Tiny phones — squeeze padding and font slightly more. */
+@media (max-width: 380px) {
+  body { font-size: 12px; }
+  .app-shell { padding: 0 6px; }
+  .mobile-header { font-size: 15px; }
+}
