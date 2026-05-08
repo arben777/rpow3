@@ -76,10 +76,24 @@ export interface LedgerResponse {
   circulating_supply: number;
   current_difficulty_bits: number;
   user_count: number;
-  /** 5-minute cumulative user-count time series. */
+  // Schedule fields (already returned by server; previously omitted from this type).
+  max_supply: number;
+  epoch: number;
+  epoch_size: number;
+  next_milestone_at: number;
+  coins_until_next_milestone: number;
+  next_difficulty_bits: number;
+  is_capped: boolean;
+  // Growth + adjustment fields.
   user_growth: UserGrowthPoint[];
   /** Time it took the user count to most recently double, in seconds. null when total < 2. */
   doubling_seconds: number | null;
-  /** ISO8601 of the very first user's created_at (precise to the second). null when no users. */
+  /** ISO8601 of the very first user's created_at. null when no users. */
   first_signup_at: string | null;
+  /** ISO8601 of the moment the last +1-bit bump landed (issued_at of the (epoch*1M)-th mint). null when still at base difficulty. */
+  last_adjustment_at: string | null;
+  /** Estimated seconds until the next +1-bit bump, based on the last 30m of mint activity. null when capped or no recent mints. */
+  next_adjustment_eta_seconds: number | null;
+  /** Mints per minute over the last 30 minutes. */
+  mint_rate_per_minute: number;
 }

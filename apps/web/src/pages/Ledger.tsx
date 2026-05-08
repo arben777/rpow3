@@ -271,22 +271,47 @@ function GrowthChart({ points, firstSignupAt }: { points: UserGrowthPoint[]; fir
   );
 }
 
+function fmtUtcStamp(iso: string): string {
+  const d = new Date(iso);
+  const m = MONTHS[d.getUTCMonth()]!;
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${m} ${day} ${hh}:${mm} UTC`;
+}
+
 export function LedgerPage() {
   const [d, setD] = useState<LedgerResponse | null>(null);
+  const [chartOpen, setChartOpen] = useState(false);
   useEffect(() => { api.ledger().then(setD); }, []);
   if (!d) return <Panel title="PUBLIC LEDGER"><div>loading...</div></Panel>;
+
   const doublingLine = d.doubling_seconds === null
     ? '  DOUBLING TIME      : (need ≥ 2 users)'
     : `  DOUBLING TIME      : ${formatDuration(d.doubling_seconds)} (last ${Math.floor(d.user_count / 2)} → ${d.user_count} users)`;
+
+  const lastAdjLine = d.last_adjustment_at
+    ? `  LAST ADJUSTMENT     : ${fmtUtcStamp(d.last_adjustment_at)} (at ${(d.epoch * d.epoch_size).toLocaleString()} coins → +${d.epoch} bit${d.epoch === 1 ? '' : 's'})`
+    : '  LAST ADJUSTMENT     : (none yet — at base difficulty)';
+
+  const nextAdjLine = d.is_capped
+    ? '  NEXT ADJUSTMENT     : (supply capped at 21,000,000)'
+    : d.next_adjustment_eta_seconds === null
+    ? `  NEXT ADJUSTMENT     : at ${d.next_milestone_at.toLocaleString()} coins (${d.coins_until_next_milestone.toLocaleString()} to go; rate too low to estimate)`
+    : `  NEXT ADJUSTMENT     : ~${formatDuration(d.next_adjustment_eta_seconds)} (at ${d.next_milestone_at.toLocaleString()} coins, ${d.coins_until_next_milestone.toLocaleString()} to go @ ${d.mint_rate_per_minute}/min)`;
+
   return (
     <>
       <Panel title="PUBLIC LEDGER">
         <pre style={{ margin: 0 }}>
-{`  TOTAL MINTED        : ${d.total_minted}
-  TOTAL TRANSFERRED   : ${d.total_transferred}
-  CIRCULATING SUPPLY  : ${d.circulating_supply}
+{`  TOTAL MINTED        : ${d.total_minted.toLocaleString()}
+  TOTAL TRANSFERRED   : ${d.total_transferred.toLocaleString()}
+  CIRCULATING SUPPLY  : ${d.circulating_supply.toLocaleString()}
   CURRENT DIFFICULTY  : ${d.current_difficulty_bits} trailing zero bits
-  USER COUNT          : ${d.user_count}
+                        (+1 bit per 1,000,000 minted; hard cap 21M)
+${lastAdjLine}
+${nextAdjLine}
+  USER COUNT          : ${d.user_count.toLocaleString()}
 `}
         </pre>
         <div style={{ marginTop: 12 }} className="tagline">
@@ -296,11 +321,54 @@ export function LedgerPage() {
       </Panel>
 
       <Panel title="USER GROWTH">
-        <pre style={{ margin: '0 0 8px' }}>
-{`  USERS              : ${d.user_count}
+        {!chartOpen && (
+          <button onClick={() => setChartOpen(true)}>
+            [ + show user growth chart and stats ]
+          </button>
+        )}
+        {chartOpen && (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <button onClick={() => setChartOpen(false)}>[ - hide ]</button>
+            </div>
+            <pre style={{ margin: '0 0 8px' }}>
+{`  USERS              : ${d.user_count.toLocaleString()}
 ${doublingLine}`}
+            </pre>
+            <GrowthChart points={d.user_growth} firstSignupAt={d.first_signup_at} />
+          </>
+        )}
+      </Panel>
+
+      <Panel title="ABOUT RPOW">
+        <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+{`  Hal Finney published RPOW (Reusable Proofs of Work) in 2004 as the
+  first cryptographic money based on proof-of-work. Bitcoin came four
+  years later, in 2008/2009.
+
+  Finney was deeply involved in early Bitcoin: he received the first
+  bitcoin transaction from Satoshi Nakamoto in January 2009. Many have
+  speculated he was part of the team behind the Satoshi pseudonym — a
+  claim he denied during his lifetime.
+
+  The original RPOW was centralized. A single trusted server, running
+  on an IBM 4758 secure coprocessor, signed token transfers and
+  prevented double-spends. There was no blockchain, no decentralized
+  consensus, and no difficulty adjustment — meaning the supply was
+  effectively unbounded as long as someone had compute. (A trusted
+  server could enforce a cap; Finney just didn't.)
+
+  Bitcoin solved all three: decentralized consensus via PoW mining tied
+  to a chain, automatic difficulty adjustment, and a fixed 21M supply
+  cap.
+
+  rpow3.com is a modern tribute to the spirit of Finney's original.
+  No IBM 4758 — Ed25519 signatures, magic-link auth, Postgres ledger.
+  Still centralized — but Bitcoin-flavored where it counts: a fixed
+  21,000,000 supply cap, and a stepped difficulty adjustment that
+  adds one trailing-zero bit for every 1,000,000 coins minted.
+`}
         </pre>
-        <GrowthChart points={d.user_growth} firstSignupAt={d.first_signup_at} />
       </Panel>
     </>
   );
