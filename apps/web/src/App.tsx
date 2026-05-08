@@ -31,9 +31,10 @@ export default function App() {
       <div className="app-shell">
         <div className="ca-stamp">9FRs43vXhWo24WpbzL2u7JtiuCAkoWKK19MsbP3mpump</div>
         <header>
-          <pre style={{ margin: 0 }}>{HEADER}</pre>
+          <pre className="ascii-header" style={{ margin: 0 }}>{HEADER}</pre>
+          <h1 className="mobile-header">RPOW3 — Reusable Proofs of Work</h1>
           <div className="tagline">a modern tribute to a tribute to the original rpow by hal finney</div>
-          <nav style={{ marginTop: 8 }}>
+          <nav className="site-nav" style={{ marginTop: 8 }}>
             <NavLink to="/">[ wallet ]</NavLink>{' '}
             <NavLink to="/mine">[ mine ]</NavLink>{' '}
             <NavLink to="/send">[ send ]</NavLink>{' '}
