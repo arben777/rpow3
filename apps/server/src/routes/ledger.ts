@@ -24,6 +24,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
       { rows: growthRows },
       { rows: doublingRows },
       { rows: firstSignupRows },
+      { rows: rateRows },
     ] = await Promise.all([
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
       app.pool.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
@@ -55,6 +56,15 @@ export async function ledgerRoutes(app: FastifyInstance) {
         LIMIT 1
       `),
       app.pool.query<{ at: Date | null }>(`SELECT min(created_at) AS at FROM users`),
+      // Recent mint rate over the last 30 minutes — used to estimate when the
+      // next +1-bit difficulty bump will land. 30m is wide enough to be stable
+      // and tight enough to reflect current load. count(*) on a partial range
+      // is fine; /ledger is cached 5s anyway.
+      app.pool.query<{ n: number }>(`
+        SELECT count(*)::int AS n FROM tokens
+        WHERE parent_token_id IS NULL
+          AND issued_at > now() - interval '30 minutes'
+      `),
     ]);
     const totalMinted = minted[0]!.n;
     const opts = {
@@ -70,6 +80,29 @@ export async function ledgerRoutes(app: FastifyInstance) {
       ? Number(doublingRows[0]!.seconds)
       : null;
     const firstSignupAt = firstSignupRows[0]?.at ? firstSignupRows[0]!.at!.toISOString() : null;
+
+    // Last and next +1-bit adjustment.
+    let lastAdjustmentAt: string | null = null;
+    if (info.epoch >= 1) {
+      // The N-th mint in chronological order brought minted_count to N. The
+      // (epoch * epochSize)-th mint is the one that crossed the most recent
+      // milestone — its issued_at is the moment of the last difficulty bump.
+      const offset = info.epoch * app.config.mintEpochSize - 1;
+      const { rows: adjRows } = await app.pool.query<{ at: Date }>(
+        `SELECT issued_at AS at FROM tokens
+         WHERE parent_token_id IS NULL
+         ORDER BY issued_at ASC OFFSET $1 LIMIT 1`,
+        [offset],
+      );
+      if (adjRows[0]?.at) lastAdjustmentAt = adjRows[0].at.toISOString();
+    }
+    const recentMints = rateRows[0]!.n;
+    const ratePerSec = recentMints / 1800;
+    let nextAdjustmentEtaSeconds: number | null = null;
+    if (!info.isCapped && info.coinsToNext > 0 && ratePerSec > 0) {
+      nextAdjustmentEtaSeconds = Math.round(info.coinsToNext / ratePerSec);
+    }
+
     return {
       total_minted: totalMinted,
       total_transferred: transferred[0]!.n,
@@ -86,6 +119,9 @@ export async function ledgerRoutes(app: FastifyInstance) {
       user_growth: growth,
       doubling_seconds: doublingSeconds,
       first_signup_at: firstSignupAt,
+      last_adjustment_at: lastAdjustmentAt,
+      next_adjustment_eta_seconds: nextAdjustmentEtaSeconds,
+      mint_rate_per_minute: Math.round(ratePerSec * 60),
     };
   }
 
