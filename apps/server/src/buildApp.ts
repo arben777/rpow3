@@ -44,6 +44,12 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   const app = Fastify({
     logger: opts.test ? false : { level: 'info' },
     disableRequestLogging: !!opts.test,
+    // Honor X-Forwarded-For across the Railway+Cloudflare proxy chain so
+    // req.ip is the real client. Without this, req.ip is the internal proxy
+    // address and the per-IP rate limit on /auth/request is useless.
+    // Safe on Railway: containers only receive traffic through Railway's
+    // edge, itself fronted by Cloudflare on api.rpow3.com.
+    trustProxy: true,
   });
 
   app.decorate('pool', opts.pool);
