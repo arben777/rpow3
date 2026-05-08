@@ -5,11 +5,39 @@ describe('GET /ledger — growth + doubling', () => {
   let cleanup: (() => Promise<void>) | null = null;
   afterEach(async () => { if (cleanup) await cleanup(); cleanup = null; });
 
-  it('user_growth is empty and doubling_seconds is null with no users', async () => {
+  it('user_growth is empty and doubling_seconds + first_signup_at are null with no users', async () => {
     const ctx = await makeTestApp(); cleanup = ctx.cleanup;
     const body = (await ctx.app.inject({ method: 'GET', url: '/ledger' })).json();
     expect(body.user_growth).toEqual([]);
     expect(body.doubling_seconds).toBeNull();
+    expect(body.first_signup_at).toBeNull();
+  });
+
+  it('first_signup_at matches the earliest user', async () => {
+    const ctx = await makeTestApp(); cleanup = ctx.cleanup;
+    await ctx.pool.query(
+      `INSERT INTO users(email, created_at) VALUES
+        ('a@x.com', '2026-05-08 21:22:00+00'),
+        ('b@x.com', '2026-05-08 23:00:00+00'),
+        ('c@x.com', '2026-05-09 00:30:00+00')`,
+    );
+    const body = (await ctx.app.inject({ method: 'GET', url: '/ledger' })).json();
+    expect(body.first_signup_at).toBe('2026-05-08T21:22:00.000Z');
+  });
+
+  it('user_growth uses 5-minute bins (denser than hourly)', async () => {
+    const ctx = await makeTestApp(); cleanup = ctx.cleanup;
+    // Three users in a single hour but in three different 5-minute bins.
+    await ctx.pool.query(
+      `INSERT INTO users(email, created_at) VALUES
+        ('a@x.com', '2026-05-08 21:02:00+00'),
+        ('b@x.com', '2026-05-08 21:18:00+00'),
+        ('c@x.com', '2026-05-08 21:42:00+00')`,
+    );
+    const body = (await ctx.app.inject({ method: 'GET', url: '/ledger' })).json();
+    expect(body.user_growth.length).toBe(3); // three distinct 5-min buckets
+    const last = body.user_growth[body.user_growth.length - 1];
+    expect(last.users).toBe(3);
   });
 
   it('doubling_seconds null when only one user', async () => {
