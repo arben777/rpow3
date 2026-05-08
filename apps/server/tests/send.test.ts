@@ -41,7 +41,7 @@ describe('POST /send', () => {
     expect(bMe.balance).toBe(2);
   });
 
-  it('fails fast when recipient has no account', async () => {
+  it('creates a pending transfer when recipient has no account', async () => {
     const ctx = await makeTestApp(); cleanup = ctx.cleanup;
     const aCookie = await loginAs(ctx, 'a@x.com');
     await mineN(ctx, aCookie, 1);
@@ -50,10 +50,15 @@ describe('POST /send', () => {
       headers: { cookie: aCookie, 'content-type': 'application/json' },
       payload: { recipient_email: 'nobody@nowhere.com', amount: 1, idempotency_key: randomUUID() },
     });
-    expect(res.statusCode).toBe(404);
-    expect(res.json().error).toBe('RECIPIENT_NOT_FOUND');
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.pending).toBe(true);
+    expect(body.transferred).toBe(1);
+    expect(body.recipient_email).toBe('nobody@nowhere.com');
+    // Sender's tokens are invalidated immediately; balance drops to 0.
     const aMe = (await ctx.app.inject({ method: 'GET', url: '/me', headers: { cookie: aCookie } })).json();
-    expect(aMe.balance).toBe(1); // not invalidated
+    expect(aMe.balance).toBe(0);
   });
 
   it('fails on insufficient balance', async () => {
