@@ -187,8 +187,6 @@ export async function statsRoutes(app: FastifyInstance) {
       { rows: circ },
       { rows: users },
       { rows: topRows },
-      { rows: top10Rows },
-      { rows: top30Rows },
       { rows: domainRows },
     ] = await Promise.all([
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
@@ -197,7 +195,9 @@ export async function statsRoutes(app: FastifyInstance) {
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
       // Top 30 miners by tokens currently held — VALID supply, not lifetime
       // mints. Mirrors what wallet pages show. We materialize 30 rows so
-      // we can also derive the top10/top30 supply share without a second pass.
+      // we can also derive the top10/top30 supply share by summing in JS,
+      // avoiding two extra GROUP BY passes that previously hit the 5 s
+      // statement_timeout under viral load.
       app.pool.query<{ owner: string; tokens: number }>(`
         SELECT owner_email AS owner, count(*)::int AS tokens
         FROM tokens
@@ -205,26 +205,6 @@ export async function statsRoutes(app: FastifyInstance) {
         GROUP BY owner_email
         ORDER BY tokens DESC, owner_email ASC
         LIMIT 30
-      `),
-      app.pool.query<{ n: number }>(`
-        SELECT coalesce(sum(t.tokens),0)::int AS n FROM (
-          SELECT count(*) AS tokens
-          FROM tokens
-          WHERE state = 'VALID'
-          GROUP BY owner_email
-          ORDER BY count(*) DESC
-          LIMIT 10
-        ) t
-      `),
-      app.pool.query<{ n: number }>(`
-        SELECT coalesce(sum(t.tokens),0)::int AS n FROM (
-          SELECT count(*) AS tokens
-          FROM tokens
-          WHERE state = 'VALID'
-          GROUP BY owner_email
-          ORDER BY count(*) DESC
-          LIMIT 30
-        ) t
       `),
       // Per-domain user counts. We classify into providers/regions in JS so
       // we don't have to keep two giant CASE expressions in lockstep with
@@ -257,8 +237,8 @@ export async function statsRoutes(app: FastifyInstance) {
       percent: totalCirculating > 0 ? (r.tokens / totalCirculating) * 100 : 0,
     }));
 
-    const top10Tokens = top10Rows[0]!.n;
-    const top30Tokens = top30Rows[0]!.n;
+    const top10Tokens = topRows.slice(0, 10).reduce((s, r) => s + r.tokens, 0);
+    const top30Tokens = topRows.reduce((s, r) => s + r.tokens, 0);
     const concentration = {
       top10_tokens: top10Tokens,
       top30_tokens: top30Tokens,
