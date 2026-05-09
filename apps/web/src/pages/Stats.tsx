@@ -5,11 +5,6 @@ import type { StatsResponse } from '@rpow/shared';
 
 function fmt(n: number): string { return n.toLocaleString(); }
 function pct(n: number, digits = 1): string { return `${n.toFixed(digits)}%`; }
-function fmtRequests(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
 
 function Bar({ percent, width = 32 }: { percent: number; width?: number }) {
   const filled = Math.max(0, Math.min(width, Math.round((percent / 100) * width)));
@@ -66,11 +61,10 @@ interface BarRowProps {
   barWidth?: number;
 }
 function BarRow({ label, count, percent, barWidth = 28 }: BarRowProps) {
-  // monospace-friendly row: fixed-width label, fixed-width count, then bar
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'minmax(7em, max-content) minmax(4em, max-content) 1fr',
+      gridTemplateColumns: 'minmax(11em, max-content) minmax(7em, max-content) 1fr',
       gap: 12,
       fontFamily: 'inherit',
       whiteSpace: 'nowrap',
@@ -128,7 +122,6 @@ export function StatsPage({ embedded = false }: { embedded?: boolean }) {
         if (!alive) return;
         setD(body);
         setErr(null);
-        // Re-poll on the server's cache cadence, clamped to [15s, 2min].
         const ms = Math.min(120_000, Math.max(15_000, (body.auto_update_seconds || 60) * 1000));
         timer = setTimeout(load, ms);
       } catch (e: unknown) {
@@ -150,6 +143,7 @@ export function StatsPage({ embedded = false }: { embedded?: boolean }) {
   const generated = new Date(d.generated_at);
   const generatedStr = `${String(generated.getUTCHours()).padStart(2, '0')}:${String(generated.getUTCMinutes()).padStart(2, '0')} UTC`;
   const providerMax = Math.max(1, ...d.email_providers.map(p => p.count));
+  const regionMax = Math.max(1, ...d.regions.map(r => r.count));
 
   return (
     <>
@@ -260,79 +254,23 @@ export function StatsPage({ embedded = false }: { embedded?: boolean }) {
       </Panel>
 
       <Panel title="MINERS BY REGION">
-        {d.regions.map((r, i) => (
-          <BarRow
-            key={i}
-            label={r.name}
-            count={`${fmt(r.count)} (${pct(r.percent)})`}
-            percent={r.percent}
-          />
-        ))}
-        <div className="dim" style={{ marginTop: 8, fontSize: 12 }}>
-          Region inferred from email domain. True geographic data requires IP geolocation.
-        </div>
-      </Panel>
-
-      <Panel title="MINING CLIENTS">
-        {d.clients.length === 0 ? (
-          <div className="dim">(no traffic yet — counters populate after the first request flush)</div>
+        {d.regions.length === 0 ? (
+          <div className="dim">(no users yet)</div>
         ) : (
-          <>
-            {d.clients.slice(0, 12).map((c, i) => (
-              <BarRow
-                key={i}
-                label={c.name}
-                count={fmtRequests(c.requests)}
-                percent={(c.requests / Math.max(1, d.clients[0]!.requests)) * 100}
-              />
-            ))}
-            <div className="dim" style={{ marginTop: 8, fontSize: 12 }}>
-              {d.clients.length} distinct client{d.clients.length === 1 ? '' : 's'} observed.
-              Counters refresh every {Math.max(1, Math.round(d.auto_update_seconds / 60))} min.
-            </div>
-          </>
-        )}
-      </Panel>
-
-      <Panel title="TOP TRAFFIC SOURCES">
-        {d.traffic_sources.length === 0 ? (
-          <div className="dim">(no traffic yet)</div>
-        ) : (
-          <>
-            <Table
-              columns={[
-                { header: '#', width: '2em', cell: (s) => s.rank },
-                { header: 'Source', width: 'minmax(0, 2fr)', cell: (s) => s.source_masked },
-                { header: 'Client', width: 'minmax(0, 1fr)', cell: (s) => s.client ?? '?' },
-                { header: 'Requests', align: 'right', width: 'minmax(0, 1fr)', cell: (s) => fmtRequests(s.requests) },
-              ]}
-              rows={d.traffic_sources}
+          d.regions.map((r, i) => (
+            <BarRow
+              key={i}
+              label={r.name}
+              count={`${fmt(r.count)} (${pct(r.percent)})`}
+              percent={(r.count / regionMax) * 100}
             />
-            <div className="dim" style={{ marginTop: 8, fontSize: 12 }}>
-              Top 10 sources account for {pct(d.traffic_top10_share_percent)} of {fmtRequests(d.traffic_total_requests)} total requests.
-            </div>
-          </>
+          ))
         )}
-      </Panel>
-
-      <Panel title="API ENDPOINT TRAFFIC">
-        {d.endpoint_traffic.length === 0 ? (
-          <div className="dim">(no traffic yet)</div>
-        ) : (
-          <>
-            {d.endpoint_traffic.slice(0, 10).map((e, i) => (
-              <BarRow
-                key={i}
-                label={e.endpoint}
-                count={fmtRequests(e.requests)}
-                percent={(e.requests / Math.max(1, d.endpoint_traffic[0]!.requests)) * 100}
-              />
-            ))}
-            <div className="dim" style={{ marginTop: 8, fontSize: 12 }}>
-              Mining endpoints (/challenge + /mint) = <span className="accent">{pct(d.mining_request_share_percent)}</span> of {fmtRequests(d.traffic_total_requests)} total requests.
-            </div>
-          </>
-        )}
+        <div className="dim" style={{ marginTop: 8, fontSize: 12 }}>
+          Region inferred from country-code email TLDs. {pct(d.region_inferable_percent)} of users
+          have an inferable region; the rest are on global providers (Gmail, Outlook, etc.) where
+          email alone does not reveal location. True geographic data would require IP geolocation.
+        </div>
       </Panel>
 
       {embedded && (

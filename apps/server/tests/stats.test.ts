@@ -1,13 +1,6 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { makeTestApp } from './helpers.js';
-import {
-  flushMetrics,
-  recordRequest,
-  classifyClient,
-  maskIp,
-  _resetMetricsBufferForTests,
-} from '../src/metrics.js';
 import { _statsTestExports } from '../src/routes/stats.js';
 
 const { maskEmail, providerFromDomain, regionFromDomain } = _statsTestExports;
@@ -23,7 +16,7 @@ async function seedUser(pool: import('pg').Pool, email: string) {
   await pool.query(`INSERT INTO users(email) VALUES($1) ON CONFLICT DO NOTHING`, [email]);
 }
 
-describe('helpers', () => {
+describe('stats helpers', () => {
   it('maskEmail keeps domain for known providers', () => {
     expect(maskEmail('arben@gmail.com')).toBe('arb***@gmail.com');
     expect(maskEmail('a@gmail.com')).toBe('a***@gmail.com');
@@ -42,33 +35,69 @@ describe('helpers', () => {
     expect(providerFromDomain('yahoo.co.jp')).toBe('Yahoo');
     expect(providerFromDomain('example.com')).toBe('Other');
   });
-  it('regionFromDomain handles China, Asia, EU/RU, Global', () => {
-    expect(regionFromDomain('qq.com')).toBe('China');
-    expect(regionFromDomain('163.com')).toBe('China');
-    expect(regionFromDomain('foo.cn')).toBe('China');
-    expect(regionFromDomain('naver.com')).toBe('Other Asia');
-    expect(regionFromDomain('foo.jp')).toBe('Other Asia');
-    expect(regionFromDomain('yandex.ru')).toBe('Europe / Russia');
-    expect(regionFromDomain('foo.de')).toBe('Europe / Russia');
-    expect(regionFromDomain('gmail.com')).toBe('Global');
-  });
-  it('maskIp redacts the middle two octets of v4', () => {
-    expect(maskIp('108.45.12.160')).toBe('108.***.***.160');
-    expect(maskIp(undefined)).toBe('unknown');
-  });
-  it('classifyClient picks coarse buckets', () => {
-    expect(classifyClient('Mozilla/5.0 (Macintosh) Safari/605')).toBe('Safari');
-    expect(classifyClient('Go-http-client/1.1')).toBe('Go client');
-    expect(classifyClient('python-requests/2.31.0')).toBe('Python');
-    expect(classifyClient('rpow-colab-gpu/0.1')).toBe('Colab GPU');
-    expect(classifyClient('node-fetch/3.0')).toBe('Node.js');
-    expect(classifyClient(undefined)).toBe('unknown');
+
+  describe('regionFromDomain', () => {
+    it('classifies China', () => {
+      expect(regionFromDomain('qq.com')).toBe('China');
+      expect(regionFromDomain('163.com')).toBe('China');
+      expect(regionFromDomain('foo.cn')).toBe('China');
+    });
+    it('classifies India / South Asia separately from Other Asia', () => {
+      expect(regionFromDomain('foo.in')).toBe('India / South Asia');
+      expect(regionFromDomain('foo.co.in')).toBe('India / South Asia');
+      expect(regionFromDomain('foo.pk')).toBe('India / South Asia');
+      expect(regionFromDomain('rediffmail.com')).toBe('India / South Asia');
+    });
+    it('classifies Other Asia', () => {
+      expect(regionFromDomain('foo.jp')).toBe('Other Asia');
+      expect(regionFromDomain('naver.com')).toBe('Other Asia');
+      expect(regionFromDomain('foo.kr')).toBe('Other Asia');
+      expect(regionFromDomain('yahoo.co.jp')).toBe('Other Asia');
+    });
+    it('classifies Russia / CIS', () => {
+      expect(regionFromDomain('yandex.ru')).toBe('Russia / CIS');
+      expect(regionFromDomain('foo.ua')).toBe('Russia / CIS');
+      expect(regionFromDomain('foo.kz')).toBe('Russia / CIS');
+    });
+    it('classifies Europe', () => {
+      expect(regionFromDomain('foo.de')).toBe('Europe');
+      expect(regionFromDomain('foo.uk')).toBe('Europe');
+      expect(regionFromDomain('foo.co.uk')).toBe('Europe');
+      expect(regionFromDomain('gmx.de')).toBe('Europe');
+    });
+    it('classifies Middle East', () => {
+      expect(regionFromDomain('foo.tr')).toBe('Middle East');
+      expect(regionFromDomain('foo.sa')).toBe('Middle East');
+      expect(regionFromDomain('foo.il')).toBe('Middle East');
+    });
+    it('classifies Latin America', () => {
+      expect(regionFromDomain('foo.br')).toBe('Latin America');
+      expect(regionFromDomain('foo.mx')).toBe('Latin America');
+      expect(regionFromDomain('uol.com.br')).toBe('Latin America');
+      expect(regionFromDomain('foo.co')).toBe('Latin America');
+    });
+    it('classifies Africa', () => {
+      expect(regionFromDomain('foo.za')).toBe('Africa');
+      expect(regionFromDomain('foo.ng')).toBe('Africa');
+      expect(regionFromDomain('foo.eg')).toBe('Africa');
+    });
+    it('classifies Oceania', () => {
+      expect(regionFromDomain('foo.au')).toBe('Oceania');
+      expect(regionFromDomain('foo.nz')).toBe('Oceania');
+    });
+    it('classifies North America (.ca only)', () => {
+      expect(regionFromDomain('foo.ca')).toBe('North America');
+    });
+    it('falls back to Generic providers for region-agnostic domains', () => {
+      expect(regionFromDomain('gmail.com')).toBe('Generic providers');
+      expect(regionFromDomain('outlook.com')).toBe('Generic providers');
+      expect(regionFromDomain('icloud.com')).toBe('Generic providers');
+    });
   });
 });
 
 describe('GET /stats', () => {
   let cleanup: (() => Promise<void>) | null = null;
-  beforeEach(() => { _resetMetricsBufferForTests(); });
   afterEach(async () => { if (cleanup) await cleanup(); cleanup = null; });
 
   it('returns zeroed live counters on a fresh DB', async () => {
@@ -82,13 +111,18 @@ describe('GET /stats', () => {
     });
     expect(body.top_miners).toEqual([]);
     expect(body.concentration.top10_tokens).toBe(0);
+    expect(body.regions).toEqual([]);
+    expect(body.region_inferable_count).toBe(0);
+    expect(body.region_inferable_percent).toBe(0);
     expect(body.email_providers.find((p: { name: string }) => p.name === 'Gmail').count).toBe(0);
+    // Removed sections should not be present in the response shape.
+    expect(body.clients).toBeUndefined();
+    expect(body.traffic_sources).toBeUndefined();
+    expect(body.endpoint_traffic).toBeUndefined();
   });
 
   it('produces a top-10 leaderboard with masked emails and percentages', async () => {
     const ctx = await makeTestApp(); cleanup = ctx.cleanup;
-    // Five users; user A has 5 tokens, B has 3, C has 2, D has 1, E has 1.
-    // Total VALID = 12.
     for (let i = 0; i < 5; i++) await seedToken(ctx.pool, 'alice@gmail.com');
     for (let i = 0; i < 3; i++) await seedToken(ctx.pool, 'bob@qq.com');
     for (let i = 0; i < 2; i++) await seedToken(ctx.pool, 'carol@example.fun');
@@ -109,13 +143,15 @@ describe('GET /stats', () => {
     expect(body.concentration.top10_percent).toBe(100);
   });
 
-  it('classifies email providers and regions from user table', async () => {
+  it('classifies email providers and regions, drops empty buckets, pins Generic last', async () => {
     const ctx = await makeTestApp(); cleanup = ctx.cleanup;
     await seedUser(ctx.pool, 'a@gmail.com');
     await seedUser(ctx.pool, 'b@gmail.com');
     await seedUser(ctx.pool, 'c@qq.com');
     await seedUser(ctx.pool, 'd@163.com');
     await seedUser(ctx.pool, 'e@yandex.ru');
+    await seedUser(ctx.pool, 'f@foo.br');
+    await seedUser(ctx.pool, 'g@foo.in');
 
     const body = (await ctx.app.inject({ method: 'GET', url: '/stats' })).json();
     const providers = Object.fromEntries(
@@ -125,50 +161,32 @@ describe('GET /stats', () => {
     expect(providers['QQ Mail']).toBe(1);
     expect(providers['163 Mail']).toBe(1);
 
-    const regions = Object.fromEntries(
+    const regionNames = body.regions.map((r: { name: string }) => r.name);
+    // Only buckets with users show up — no Africa/Oceania/Middle East/Europe/etc. zero rows.
+    expect(regionNames).toEqual([
+      'China', 'India / South Asia', 'Russia / CIS', 'Latin America', 'Generic providers',
+    ]);
+    // China = 2 (qq.com + 163.com); India = 1; Russia = 1; LATAM = 1; Generic = 2 (gmail).
+    const regionCounts = Object.fromEntries(
       body.regions.map((r: { name: string; count: number }) => [r.name, r.count]),
     );
-    expect(regions.Global).toBe(2);
-    expect(regions.China).toBe(2);
-    expect(regions['Europe / Russia']).toBe(1);
-    expect(body.live.miners).toBe(5);
+    expect(regionCounts.China).toBe(2);
+    expect(regionCounts['India / South Asia']).toBe(1);
+    expect(regionCounts['Generic providers']).toBe(2);
+    // 5 of 7 users have an inferable region.
+    expect(body.region_inferable_count).toBe(5);
+    expect(body.region_inferable_percent).toBeCloseTo((5 / 7) * 100, 5);
+    expect(body.live.miners).toBe(7);
   });
 
-  it('reports endpoint, client, and source traffic after a flush', async () => {
+  it('omits the Generic providers row when no generic-provider users exist', async () => {
     const ctx = await makeTestApp(); cleanup = ctx.cleanup;
-    // Synthetic counters — bypassing the Fastify hook so we don't depend
-    // on which routes happen to exist in the test app.
-    for (let i = 0; i < 100; i++) {
-      recordRequest({ endpoint: '/challenge', ip: '1.2.3.4', userAgent: 'Go-http-client' });
-    }
-    for (let i = 0; i < 50; i++) {
-      recordRequest({ endpoint: '/mint', ip: '1.2.3.4', userAgent: 'Go-http-client' });
-    }
-    for (let i = 0; i < 10; i++) {
-      recordRequest({ endpoint: '/me', ip: '5.6.7.8', userAgent: 'python-requests/2.31' });
-    }
-    await flushMetrics(ctx.pool);
-
+    await seedUser(ctx.pool, 'a@foo.cn');
+    await seedUser(ctx.pool, 'b@foo.de');
     const body = (await ctx.app.inject({ method: 'GET', url: '/stats' })).json();
-    const endpoints = Object.fromEntries(
-      body.endpoint_traffic.map((e: { endpoint: string; requests: number }) => [e.endpoint, e.requests]),
-    );
-    expect(endpoints['/challenge']).toBe(100);
-    expect(endpoints['/mint']).toBe(50);
-    expect(endpoints['/me']).toBe(10);
-    expect(body.mining_request_share_percent).toBeCloseTo((150 / 160) * 100, 5);
-
-    const clients = Object.fromEntries(
-      body.clients.map((c: { name: string; requests: number }) => [c.name, c.requests]),
-    );
-    expect(clients['Go client']).toBe(150);
-    expect(clients.Python).toBe(10);
-
-    expect(body.traffic_sources[0]).toMatchObject({
-      rank: 1,
-      source_masked: '1.***.***.4',
-      requests: 150,
-    });
+    const names = body.regions.map((r: { name: string }) => r.name);
+    expect(names).not.toContain('Generic providers');
+    expect(body.region_inferable_percent).toBe(100);
   });
 
   it('is_capped flips at maxSupply', async () => {
@@ -185,10 +203,8 @@ describe('CORS multi-origin', () => {
   let cleanup: (() => Promise<void>) | null = null;
   afterEach(async () => { if (cleanup) await cleanup(); cleanup = null; });
 
-  it('allows the configured stats subdomain', async () => {
+  it('rejects an origin that is not in the allow-list', async () => {
     const ctx = await makeTestApp(); cleanup = ctx.cleanup;
-    // Default test app only allows http://web.test. /stats requested from
-    // a sibling origin should be blocked unless we whitelist it.
     const res = await ctx.app.inject({
       method: 'OPTIONS',
       url: '/stats',
@@ -197,9 +213,6 @@ describe('CORS multi-origin', () => {
         'access-control-request-method': 'GET',
       },
     });
-    // CORS rejection isn't a 4xx — fastify-cors strips the Access-Control-*
-    // headers when the origin is denied. We just verify no allow-origin is
-    // echoed back so the browser refuses the response.
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 });

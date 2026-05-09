@@ -87,14 +87,6 @@ export interface StatsConcentration {
 }
 export interface StatsBucketCount { name: string; count: number }
 export interface StatsRegion { name: string; count: number; percent: number }
-export interface StatsClient { name: string; requests: number }
-export interface StatsTrafficSource {
-  rank: number;
-  source_masked: string;
-  client: string | null;
-  requests: number;
-}
-export interface StatsEndpointTraffic { endpoint: string; requests: number }
 
 export interface StatsResponse {
   generated_at: string;
@@ -122,12 +114,10 @@ export interface StatsResponse {
   concentration: StatsConcentration;
   email_providers: StatsBucketCount[];
   regions: StatsRegion[];
-  clients: StatsClient[];
-  traffic_sources: StatsTrafficSource[];
-  traffic_total_requests: number;
-  traffic_top10_share_percent: number;
-  endpoint_traffic: StatsEndpointTraffic[];
-  mining_request_share_percent: number;
+  /** Number of users whose email TLD maps to a country/region. */
+  region_inferable_count: number;
+  /** Same, expressed as a percentage of total users. */
+  region_inferable_percent: number;
 }
 
 export interface LedgerResponse {
