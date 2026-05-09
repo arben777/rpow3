@@ -2,7 +2,6 @@ import { parseEnv } from './env.js';
 import { createPool, runMigrations } from './db.js';
 import { buildApp } from './buildApp.js';
 import { ResendMailer, FakeMailer, type Mailer } from './mailer.js';
-import { startMetricsFlush } from './metrics.js';
 
 const env = parseEnv();
 const pool = createPool(env.DATABASE_URL);
@@ -46,15 +45,3 @@ const app = await buildApp({
 });
 await app.listen({ host: '0.0.0.0', port: env.PORT });
 app.log.info(`rpow3 server listening on :${env.PORT}`);
-
-// Drain in-memory request counters into Postgres on a 30s timer. This
-// drives the public /stats page; see metrics.ts for the loss/scale model.
-const stopFlush = startMetricsFlush(pool, 30_000);
-const shutdown = async (sig: string) => {
-  app.log.info(`received ${sig}, draining metrics and closing`);
-  await stopFlush();
-  await app.close();
-  process.exit(0);
-};
-process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
-process.once('SIGINT', () => { void shutdown('SIGINT'); });

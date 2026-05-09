@@ -4,14 +4,22 @@ import { difficultyForSupply, epochInfo } from '../schedule.js';
 /**
  * Public /stats endpoint — drives the stats.rpow3.com dashboard.
  *
- * Aggregates network-wide counters, miner leaderboards, supply
- * concentration, derived demographic breakdowns from email domains, and
- * the request-metrics table populated by the onResponse hook.
+ * Aggregates network-wide counters, the miner leaderboard, supply
+ * concentration, and demographic breakdowns derived from email domains.
  *
  * Cached 60 s and coalesced behind a single in-flight promise. The
  * heaviest query (top miners + per-miner totals) does a full GROUP BY on
  * tokens, which we don't want firing per-poller. 60 s of staleness is
  * invisible on a stats page.
+ *
+ * NB: an earlier revision also exposed per-endpoint, per-IP, and per-
+ * client request counts. Those were yanked because at typical viral
+ * traffic levels the counters take days to accumulate to anything that
+ * looks accurate next to /challenge's true volume — they were misleading
+ * more than they were useful. The supporting `request_metrics` table
+ * (migration 009) is intentionally left in place but unread; if we ever
+ * add IP-geolocation or revive client tracking, the schema's already
+ * there.
  */
 const STATS_CACHE_MS = 60_000;
 
@@ -55,35 +63,118 @@ function providerFromDomain(domain: string): string {
   return 'Other';
 }
 
+/**
+ * Bucket a domain into a regional cohort. The order of the if-cascade
+ * matters — country-code TLDs (.cn, .br, .jp) take priority over the
+ * generic catch-all so e.g. yahoo.co.jp counts as "Other Asia", not
+ * "Generic providers". When nothing matches, the address is on a
+ * region-agnostic provider (gmail/outlook/etc.) and we honestly admit
+ * we can't infer location from email alone.
+ */
 function regionFromDomain(domain: string): string {
   const d = domain.toLowerCase();
-  if (
-    d.endsWith('.cn')
-    || d === 'qq.com' || d === 'foxmail.com'
-    || d === '163.com' || d === '126.com'
-    || d === 'sina.com' || d === 'sohu.com' || d === 'aliyun.com'
-  ) return 'China';
-  if (
-    d.endsWith('.jp') || d.endsWith('.kr') || d.endsWith('.tw') || d.endsWith('.hk')
-    || d.endsWith('.sg') || d.endsWith('.my') || d.endsWith('.id') || d.endsWith('.th')
-    || d.endsWith('.vn') || d.endsWith('.ph') || d.endsWith('.in')
-    || d === 'naver.com' || d === 'daum.net'
-  ) return 'Other Asia';
-  if (
-    d.endsWith('.ru') || d.endsWith('.de') || d.endsWith('.fr') || d.endsWith('.uk')
-    || d.endsWith('.it') || d.endsWith('.es') || d.endsWith('.nl') || d.endsWith('.pl')
-    || d.endsWith('.se') || d.endsWith('.fi') || d.endsWith('.no') || d.endsWith('.dk')
-    || d.endsWith('.cz') || d.endsWith('.gr') || d.endsWith('.ua') || d.endsWith('.by')
-    || d.endsWith('.eu')
-    || d === 'yandex.ru' || d === 'mail.ru' || d === 'rambler.ru'
-    || d === 'gmx.de' || d === 'web.de' || d === 't-online.de'
-    || d === 'orange.fr' || d === 'wanadoo.fr'
-  ) return 'Europe / Russia';
-  return 'Global';
+
+  // China — country code TLD plus the major Chinese mailbox providers.
+  if (d.endsWith('.cn')
+      || d === 'qq.com' || d === 'foxmail.com'
+      || d === '163.com' || d === '126.com' || d === 'yeah.net'
+      || d === 'sina.com' || d === 'sina.com.cn'
+      || d === 'sohu.com' || d === 'aliyun.com') return 'China';
+
+  // India / South Asia. Catches .in (incl. .co.in, .ac.in) and neighbors.
+  if (d.endsWith('.in') || d.endsWith('.pk') || d.endsWith('.bd')
+      || d.endsWith('.lk') || d.endsWith('.np') || d.endsWith('.bt')
+      || d === 'rediffmail.com' || d === 'rediff.com') return 'India / South Asia';
+
+  // Other Asia — Japan, Korea, SE Asia.
+  if (d.endsWith('.jp') || d.endsWith('.kr') || d.endsWith('.tw')
+      || d.endsWith('.hk') || d.endsWith('.sg') || d.endsWith('.my')
+      || d.endsWith('.id') || d.endsWith('.th') || d.endsWith('.vn')
+      || d.endsWith('.ph') || d.endsWith('.mn') || d.endsWith('.kh')
+      || d.endsWith('.la') || d.endsWith('.mm')
+      || d === 'naver.com' || d === 'daum.net'
+      || d === 'hanmail.net' || d === 'kakao.com') return 'Other Asia';
+
+  // Russia / CIS — Russia, Belarus, Ukraine, Central Asia.
+  if (d.endsWith('.ru') || d.endsWith('.by') || d.endsWith('.ua')
+      || d.endsWith('.kz') || d.endsWith('.uz') || d.endsWith('.am')
+      || d.endsWith('.ge') || d.endsWith('.az') || d.endsWith('.md')
+      || d === 'yandex.ru' || d === 'yandex.com'
+      || d === 'mail.ru' || d === 'rambler.ru' || d === 'inbox.ru'
+      || d === 'list.ru' || d === 'bk.ru') return 'Russia / CIS';
+
+  // Europe — EU + UK + EFTA. .uk catches .co.uk too.
+  if (d.endsWith('.de') || d.endsWith('.fr') || d.endsWith('.uk')
+      || d.endsWith('.it') || d.endsWith('.es') || d.endsWith('.nl')
+      || d.endsWith('.pl') || d.endsWith('.se') || d.endsWith('.fi')
+      || d.endsWith('.no') || d.endsWith('.dk') || d.endsWith('.cz')
+      || d.endsWith('.sk') || d.endsWith('.hu') || d.endsWith('.gr')
+      || d.endsWith('.ro') || d.endsWith('.bg') || d.endsWith('.hr')
+      || d.endsWith('.si') || d.endsWith('.lt') || d.endsWith('.lv')
+      || d.endsWith('.ee') || d.endsWith('.ie') || d.endsWith('.pt')
+      || d.endsWith('.be') || d.endsWith('.at') || d.endsWith('.ch')
+      || d.endsWith('.lu') || d.endsWith('.is') || d.endsWith('.eu')
+      || d === 'gmx.de' || d === 'gmx.com' || d === 'web.de'
+      || d === 't-online.de' || d === 'orange.fr' || d === 'wanadoo.fr'
+      || d === 'free.fr' || d === 'libero.it' || d === 'tiscali.it'
+      || d === 'seznam.cz') return 'Europe';
+
+  // Middle East — Turkey + GCC + Levant + Iran.
+  if (d.endsWith('.tr') || d.endsWith('.sa') || d.endsWith('.ae')
+      || d.endsWith('.il') || d.endsWith('.ir') || d.endsWith('.iq')
+      || d.endsWith('.qa') || d.endsWith('.kw') || d.endsWith('.om')
+      || d.endsWith('.lb') || d.endsWith('.jo') || d.endsWith('.sy')
+      || d.endsWith('.ye') || d.endsWith('.bh')
+      || d === 'walla.com' || d === 'walla.co.il') return 'Middle East';
+
+  // Latin America — South + Central America + Caribbean. NB: .co also
+  // matches generic "company" usage, but treating it as Colombia is the
+  // closest signal we have from email alone.
+  if (d.endsWith('.br') || d.endsWith('.mx') || d.endsWith('.ar')
+      || d.endsWith('.co') || d.endsWith('.cl') || d.endsWith('.pe')
+      || d.endsWith('.ve') || d.endsWith('.uy') || d.endsWith('.py')
+      || d.endsWith('.bo') || d.endsWith('.ec') || d.endsWith('.gt')
+      || d.endsWith('.cr') || d.endsWith('.pa') || d.endsWith('.do')
+      || d.endsWith('.pr') || d.endsWith('.ni') || d.endsWith('.sv')
+      || d.endsWith('.hn') || d.endsWith('.cu')
+      || d === 'uol.com.br' || d === 'bol.com.br' || d === 'terra.com.br'
+      || d === 'globo.com') return 'Latin America';
+
+  // Africa.
+  if (d.endsWith('.za') || d.endsWith('.ng') || d.endsWith('.ke')
+      || d.endsWith('.eg') || d.endsWith('.gh') || d.endsWith('.ma')
+      || d.endsWith('.dz') || d.endsWith('.tn') || d.endsWith('.et')
+      || d.endsWith('.ug') || d.endsWith('.tz') || d.endsWith('.sn')
+      || d.endsWith('.ci') || d.endsWith('.cm') || d.endsWith('.zw')
+      || d.endsWith('.mz') || d.endsWith('.ao') || d.endsWith('.rw')) return 'Africa';
+
+  // Oceania.
+  if (d.endsWith('.au') || d.endsWith('.nz')
+      || d.endsWith('.fj') || d.endsWith('.pg')) return 'Oceania';
+
+  // North America — only .ca; .us is rare for personal email and gmail
+  // dominates US users anyway, so they end up in Generic providers below.
+  if (d.endsWith('.ca')) return 'North America';
+
+  // Catch-all: gmail / outlook / yahoo / icloud / hotmail / etc. We don't
+  // pretend to know region for these.
+  return 'Generic providers';
 }
 
 const PROVIDER_ORDER = ['Gmail', 'QQ Mail', 'Outlook', '163 Mail', 'Hotmail', 'iCloud', 'Yahoo', 'Other'] as const;
-const REGION_ORDER = ['Global', 'China', 'Other Asia', 'Europe / Russia'] as const;
+const REGION_ORDER = [
+  'China',
+  'India / South Asia',
+  'Other Asia',
+  'Europe',
+  'Russia / CIS',
+  'Middle East',
+  'Latin America',
+  'Africa',
+  'Oceania',
+  'North America',
+  'Generic providers',
+] as const;
 
 export async function statsRoutes(app: FastifyInstance) {
   let cached: { ts: number; body: unknown } | null = null;
@@ -99,9 +190,6 @@ export async function statsRoutes(app: FastifyInstance) {
       { rows: top10Rows },
       { rows: top30Rows },
       { rows: domainRows },
-      { rows: endpointRows },
-      { rows: clientRows },
-      { rows: sourceRows },
     ] = await Promise.all([
       app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
       app.pool.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
@@ -145,18 +233,6 @@ export async function statsRoutes(app: FastifyInstance) {
         SELECT lower(split_part(email, '@', 2)) AS domain, count(*)::int AS n
         FROM users
         GROUP BY domain
-      `),
-      app.pool.query<{ key: string; count: string }>(`
-        SELECT key, count::text AS count FROM request_metrics
-        WHERE metric_type='endpoint' ORDER BY count DESC LIMIT 20
-      `),
-      app.pool.query<{ key: string; count: string }>(`
-        SELECT key, count::text AS count FROM request_metrics
-        WHERE metric_type='client' ORDER BY count DESC LIMIT 20
-      `),
-      app.pool.query<{ key: string; count: string; last_client: string | null }>(`
-        SELECT key, count::text AS count, last_client FROM request_metrics
-        WHERE metric_type='source' ORDER BY count DESC LIMIT 10
       `),
     ]);
 
@@ -209,7 +285,16 @@ export async function statsRoutes(app: FastifyInstance) {
       name,
       count: providerCounts.get(name) ?? 0,
     }));
-    const regions = REGION_ORDER.map(name => {
+
+    // Region display rules:
+    //   - Drop empty buckets so the page doesn't list ten zero-count rows.
+    //   - Sort the inferable cohorts by count descending (most-represented
+    //     country first).
+    //   - Always pin "Generic providers" to the bottom regardless of size,
+    //     so the geographic distribution is visually emphasized — that
+    //     bucket is typically the largest by far (gmail dominance) but
+    //     contains no regional signal.
+    const allRegions = REGION_ORDER.map(name => {
       const count = regionCounts.get(name) ?? 0;
       return {
         name,
@@ -217,28 +302,14 @@ export async function statsRoutes(app: FastifyInstance) {
         percent: totalUsers > 0 ? (count / totalUsers) * 100 : 0,
       };
     });
+    const generic = allRegions.find(r => r.name === 'Generic providers')!;
+    const inferable = allRegions
+      .filter(r => r.name !== 'Generic providers' && r.count > 0)
+      .sort((a, b) => b.count - a.count);
+    const regions = generic.count > 0 ? [...inferable, generic] : inferable;
 
-    const endpoint_traffic = endpointRows.map(r => ({
-      endpoint: r.key,
-      requests: Number(r.count),
-    }));
-    const total_requests = endpoint_traffic.reduce((s, r) => s + r.requests, 0);
-    const miningRequests = endpoint_traffic
-      .filter(r => r.endpoint === '/challenge' || r.endpoint === '/mint')
-      .reduce((s, r) => s + r.requests, 0);
-    const mining_request_share = total_requests > 0 ? (miningRequests / total_requests) * 100 : 0;
-
-    const clients = clientRows.map(r => ({
-      name: r.key,
-      requests: Number(r.count),
-    }));
-    const traffic_sources = sourceRows.map((r, i) => ({
-      rank: i + 1,
-      source_masked: r.key,
-      client: r.last_client,
-      requests: Number(r.count),
-    }));
-    const top10SourceRequests = traffic_sources.reduce((s, r) => s + r.requests, 0);
+    const inferableCount = inferable.reduce((s, r) => s + r.count, 0);
+    const inferablePercent = totalUsers > 0 ? (inferableCount / totalUsers) * 100 : 0;
 
     return {
       generated_at: new Date().toISOString(),
@@ -268,14 +339,8 @@ export async function statsRoutes(app: FastifyInstance) {
       concentration,
       email_providers,
       regions,
-      clients,
-      traffic_sources,
-      traffic_total_requests: total_requests,
-      traffic_top10_share_percent: total_requests > 0
-        ? (top10SourceRequests / total_requests) * 100
-        : 0,
-      endpoint_traffic,
-      mining_request_share_percent: mining_request_share,
+      region_inferable_count: inferableCount,
+      region_inferable_percent: inferablePercent,
     };
   }
 
@@ -295,8 +360,4 @@ export async function statsRoutes(app: FastifyInstance) {
   });
 }
 
-// Test-only export: clear the route-local cache between assertions.
-// Cache state is closed over inside statsRoutes; tests build a fresh app
-// per case so they get a fresh cache for free. (Exported so we don't
-// accidentally remove the route in a refactor without flagging this.)
 export const _statsTestExports = { maskEmail, providerFromDomain, regionFromDomain };
