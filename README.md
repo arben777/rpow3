@@ -20,7 +20,7 @@ To run the stack with low difficulty for hands-on testing:
 ```bash
 # In one terminal
 DATABASE_URL=postgres://postgres:p@localhost:55432/postgres \
-RESEND_API_KEY=re_test EMAIL_FROM='rpow3 <no-reply@rpow3.com>' \
+RESEND_API_KEY=re_test EMAIL_FROM='rpow3 <hello@rpow3.com>' \
 SESSION_SECRET=$(openssl rand -hex 32) \
 MAGIC_LINK_BASE_URL=http://localhost:8080 WEB_ORIGIN=http://localhost:5173 \
 DIFFICULTY_BITS=20 DIFFICULTY_FLOOR=8 \
