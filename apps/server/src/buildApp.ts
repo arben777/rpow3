@@ -11,6 +11,8 @@ import { sendRoutes } from './routes/send.js';
 import { claimRoutes } from './routes/claim.js';
 import { activityRoutes } from './routes/activity.js';
 import { ledgerRoutes } from './routes/ledger.js';
+import { statsRoutes } from './routes/stats.js';
+import { recordRequest } from './metrics.js';
 
 export interface AppConfig {
   sessionSecret: string;
@@ -22,6 +24,8 @@ export interface AppConfig {
   signingPrivateKeyHex: string;
   signingPublicKeyHex: string;
   webOrigin: string;
+  /** Optional additional origins permitted by CORS (e.g. https://stats.rpow3.com). */
+  extraOrigins?: string[];
   secureCookies: boolean;
 }
 
@@ -65,9 +69,34 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   app.decorate('config', opts.config);
 
   await app.register(cookie, { secret: opts.config.sessionSecret });
+  // Allow the main web origin plus any additional origins (e.g. the
+  // stats.rpow3.com subdomain). Pass a Set to @fastify/cors so unknown
+  // origins fail closed; we don't want to wildcard while credentials are on.
+  const allowed = new Set<string>([opts.config.webOrigin, ...(opts.config.extraOrigins ?? [])]);
   await app.register(cors, {
-    origin: opts.config.webOrigin,
+    origin: (origin, cb) => {
+      // Same-origin requests and curl/server-to-server have no Origin header.
+      // Browsers always set it on cross-origin XHR/fetch.
+      if (!origin) return cb(null, true);
+      cb(null, allowed.has(origin));
+    },
     credentials: true,
+  });
+
+  // Tally each completed request for the public /stats page. This runs on
+  // every response so it must stay cheap — recordRequest is just two Map
+  // sets. Skip the health check (load balancers hammer it) and /stats itself
+  // (would amplify its own counters every cache miss).
+  app.addHook('onResponse', async (req, _reply) => {
+    const url = (req as { routeOptions?: { url?: string } }).routeOptions?.url
+      ?? (req as { routerPath?: string }).routerPath
+      ?? req.url;
+    if (!url || url === '/health' || url === '/stats') return;
+    recordRequest({
+      endpoint: url,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   });
 
   app.get('/health', async () => ({ ok: true }));
@@ -79,6 +108,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(claimRoutes);
   await app.register(activityRoutes);
   await app.register(ledgerRoutes);
+  await app.register(statsRoutes);
 
   app.get('/.well-known/rpow-pubkey.pem', async (_req, reply) => {
     const pubDer = Buffer.concat([

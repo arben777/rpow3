@@ -2,6 +2,7 @@ import type {
   AuthRequestBody, AuthRequestResponse, MeResponse,
   ChallengeResponse, MintRequestBody, MintResponse,
   SendRequestBody, SendResponse, ActivityResponse, LedgerResponse, ApiError,
+  StatsResponse,
 } from '@rpow/shared';
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
@@ -30,4 +31,5 @@ export const api = {
   send: (b: SendRequestBody) => call<SendResponse>('POST', '/send', b),
   activity: () => call<ActivityResponse>('GET', '/activity'),
   ledger: () => call<LedgerResponse>('GET', '/ledger'),
+  stats: () => call<StatsResponse>('GET', '/stats'),
 };
