@@ -53,7 +53,26 @@ export type ApiErrorCode =
   | 'RATE_LIMITED'
   | 'UNAUTHORIZED'
   | 'BAD_REQUEST'
-  | 'INTERNAL';
+  | 'INTERNAL'
+  | 'SLOT_OVERLAP'
+  | 'SLOT_NOT_FOUND'
+  | 'SLOT_NOT_OWNED'
+  | 'SLOT_NOT_LISTED'
+  | 'SLOT_LOCKED'
+  | 'NO_LIST_COOLDOWN'
+  | 'PER_EMAIL_CAP'
+  | 'INSUFFICIENT_RPOW'
+  | 'INSUFFICIENT_BALANCE_SATS'
+  | 'IMAGE_TOO_LARGE'
+  | 'IMAGE_REJECTED'
+  | 'URL_REJECTED'
+  | 'LIGHTNING_DISABLED'
+  | 'LIGHTNING_ERROR'
+  | 'PAYOUT_LIMIT'
+  | 'BALANCE_LIMIT'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'CONFLICT';
 
 export interface ApiError { error: ApiErrorCode; message: string; retry_after?: number }
 

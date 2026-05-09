@@ -10,6 +10,9 @@ import { SendPage } from './pages/Send.js';
 import { ActivityPage } from './pages/Activity.js';
 import { LedgerPage } from './pages/Ledger.js';
 import { StatsPage } from './pages/Stats.js';
+import { BillboardPage } from './pages/Billboard.js';
+import { LightningPage } from './pages/Lightning.js';
+import { TimestampsPage } from './pages/Timestamps.js';
 
 const HEADER = [
   '+======================================================================+',
@@ -86,9 +89,12 @@ function FullShell() {
             <NavLink to="/">[ wallet ]</NavLink>{' '}
             <NavLink to="/mine">[ mine ]</NavLink>{' '}
             <NavLink to="/send">[ send ]</NavLink>{' '}
+            <NavLink to="/billboard">[ billboard ]</NavLink>{' '}
+            <NavLink to="/lightning">[ lightning ]</NavLink>{' '}
             <NavLink to="/activity">[ activity ]</NavLink>{' '}
             <NavLink to="/ledger">[ ledger ]</NavLink>{' '}
             <NavLink to="/stats">[ stats ]</NavLink>{' '}
+            <NavLink to="/timestamps">[ ots ]</NavLink>{' '}
             {me ? (
               <button onClick={logout} title="end session">[ logout ]</button>
             ) : (
@@ -104,9 +110,12 @@ function FullShell() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/mine" element={<MinePage />} />
             <Route path="/send" element={<SendPage />} />
+            <Route path="/billboard" element={<BillboardPage />} />
+            <Route path="/lightning" element={<LightningPage />} />
             <Route path="/activity" element={<ActivityPage />} />
             <Route path="/ledger" element={<LedgerPage />} />
             <Route path="/stats" element={<StatsPage />} />
+            <Route path="/timestamps" element={<TimestampsPage />} />
           </Routes>
         </main>
       </div>

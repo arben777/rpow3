@@ -12,6 +12,15 @@ import { claimRoutes } from './routes/claim.js';
 import { activityRoutes } from './routes/activity.js';
 import { ledgerRoutes } from './routes/ledger.js';
 import { statsRoutes } from './routes/stats.js';
+import { billboardRoutes, type BillboardConfig } from './routes/billboard.js';
+import { lightningRoutes, type LightningConfig } from './routes/lightning.js';
+import { adminModerationRoutes } from './routes/adminModeration.js';
+import {
+  createImageStore, type ImageStore,
+} from './billboard/imageStorage.js';
+import { type ModerationConfig } from './billboard/moderation.js';
+import { PhoenixdClient } from './lightning/phoenixd.js';
+import { parseAdminEmails, type AdminConfig } from './admin.js';
 
 export interface AppConfig {
   sessionSecret: string;
@@ -26,6 +35,14 @@ export interface AppConfig {
   /** Optional additional origins permitted by CORS (e.g. https://stats.rpow3.com). */
   extraOrigins?: string[];
   secureCookies: boolean;
+
+  // ── Billboard / Lightning extras ─────────────────────────────────────
+  billboard: BillboardConfig;
+  lightning: LightningConfig;
+  moderation: ModerationConfig;
+  admin: AdminConfig;
+  imageStore: ImageStore;
+  phoenixd: PhoenixdClient | null;
 }
 
 export interface BuildAppOptions {
@@ -61,6 +78,11 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     // Safe on Railway: containers only receive traffic through Railway's
     // edge, itself fronted by Cloudflare on api.rpow3.com.
     trustProxy: true,
+    // Bigger body limit so claims with 256 KB base64-encoded images can
+    // come through without 413. Base64 inflates by ~4/3, plus JSON
+    // overhead — 1 MiB is a safe ceiling that still rejects arbitrary
+    // JSON payloads.
+    bodyLimit: 1 * 1024 * 1024,
   });
 
   app.decorate('pool', opts.pool);
@@ -92,6 +114,18 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(activityRoutes);
   await app.register(ledgerRoutes);
   await app.register(statsRoutes);
+  await app.register((a) => billboardRoutes(a, {
+    imageStore: opts.config.imageStore,
+    moderationCfg: opts.config.moderation,
+    cfg: opts.config.billboard,
+  }));
+  await app.register((a) => lightningRoutes(a, {
+    cfg: opts.config.lightning,
+    phoenixd: opts.config.phoenixd,
+  }));
+  await app.register((a) => adminModerationRoutes(a, {
+    admins: opts.config.admin,
+  }));
 
   app.get('/.well-known/rpow-pubkey.pem', async (_req, reply) => {
     const pubDer = Buffer.concat([
@@ -118,3 +152,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
 
   return app;
 }
+
+// Re-exported so tests / callers can build their own AppConfig without
+// reaching into deeply-nested module paths.
+export { createImageStore, parseAdminEmails };

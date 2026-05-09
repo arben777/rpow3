@@ -3,9 +3,22 @@ import type { Pool } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { FakeMailer } from '../src/mailer.js';
 import { buildApp } from '../src/buildApp.js';
+import { createImageStore } from '../src/billboard/imageStorage.js';
+import { parseAdminEmails } from '../src/admin.js';
 import pg from 'pg';
 
-export async function makeTestApp(): Promise<{
+export interface TestAppOverrides {
+  /** Force LIGHTNING_ENABLED=true with the supplied stub phoenixd. */
+  phoenixd?: any;
+  /** Override the admin email set. */
+  adminEmails?: string;
+  /** Override RPOW_PER_CELL (default 100; some tests want 4). */
+  rpowPerCell?: number;
+  /** Override the per-email cap (default 100). */
+  perEmailOwnedCapCells?: number;
+}
+
+export async function makeTestApp(overrides: TestAppOverrides = {}): Promise<{
   app: Awaited<ReturnType<typeof buildApp>>;
   pool: Pool;
   mailer: FakeMailer;
@@ -30,6 +43,7 @@ export async function makeTestApp(): Promise<{
 
   await runMigrations(pool);
   const mailer = new FakeMailer();
+  const imageStore = createImageStore({ backend: 'memory' });
   const app = await buildApp({
     pool,
     mailer,
@@ -45,6 +59,27 @@ export async function makeTestApp(): Promise<{
       signingPublicKeyHex: '22'.repeat(32),
       webOrigin: 'http://web.test',
       secureCookies: false,
+      billboard: {
+        rpowPerCell: overrides.rpowPerCell ?? 100,
+        rakeBps: 100,
+        noListHoldHours: 24,
+        perEmailOwnedCapCells: overrides.perEmailOwnedCapCells ?? 100,
+        lightningEnabled: !!overrides.phoenixd,
+        storagePublicUrlBase: null,
+        serverPublicUrl: 'http://test',
+      },
+      lightning: {
+        enabled: !!overrides.phoenixd,
+        domain: 'test.local',
+        rakeBps: 100,
+        maxBalanceMsat: 10_000_000_000,
+        maxPayout24hMsat: 1_000_000_000,
+        webhookSecret: 'test-secret',
+      },
+      moderation: { enabled: false },
+      admin: parseAdminEmails(overrides.adminEmails),
+      imageStore,
+      phoenixd: overrides.phoenixd ?? null,
     },
   });
   return {
