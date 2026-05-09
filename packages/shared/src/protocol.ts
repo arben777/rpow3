@@ -70,6 +70,66 @@ export interface UserGrowthPoint {
   users: number;  // cumulative user count at that bucket
 }
 
+export interface StatsTopMiner {
+  rank: number;
+  email_masked: string;
+  tokens: number;
+  percent: number;
+}
+export interface StatsConcentration {
+  top10_tokens: number;
+  top30_tokens: number;
+  others_tokens: number;
+  top10_percent: number;
+  top30_percent: number;
+  others_percent: number;
+  others_user_count: number;
+}
+export interface StatsBucketCount { name: string; count: number }
+export interface StatsRegion { name: string; count: number; percent: number }
+export interface StatsClient { name: string; requests: number }
+export interface StatsTrafficSource {
+  rank: number;
+  source_masked: string;
+  client: string | null;
+  requests: number;
+}
+export interface StatsEndpointTraffic { endpoint: string; requests: number }
+
+export interface StatsResponse {
+  generated_at: string;
+  auto_update_seconds: number;
+  live: {
+    miners: number;
+    circulating: number;
+    transferred: number;
+    minted: number;
+    max_supply: number;
+    percent_minted: number;
+    remaining: number;
+  };
+  difficulty: {
+    current_bits: number;
+    next_bits: number;
+    epoch: number;
+    epoch_size: number;
+    in_epoch: number;
+    coins_to_next: number;
+    epoch_progress_percent: number;
+    is_capped: boolean;
+  };
+  top_miners: StatsTopMiner[];
+  concentration: StatsConcentration;
+  email_providers: StatsBucketCount[];
+  regions: StatsRegion[];
+  clients: StatsClient[];
+  traffic_sources: StatsTrafficSource[];
+  traffic_total_requests: number;
+  traffic_top10_share_percent: number;
+  endpoint_traffic: StatsEndpointTraffic[];
+  mining_request_share_percent: number;
+}
+
 export interface LedgerResponse {
   total_minted: number;
   total_transferred: number;

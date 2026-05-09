@@ -15,6 +15,10 @@ const Schema = z.object({
   MINT_EPOCH_SIZE: z.coerce.number().int().positive().default(1_000_000),
   MINT_MAX_SUPPLY: z.coerce.number().int().positive().default(21_000_000),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+  // Comma-separated list of additional CORS origins. Used to allow the
+  // public stats subdomain (e.g. https://stats.rpow3.com) without
+  // widening the main web app's policy.
+  EXTRA_WEB_ORIGINS: z.string().optional(),
   TURNSTILE_SECRET: z.string().optional(),
 });
 
