@@ -78,6 +78,10 @@ function FullShell() {
   return (
     <HashRouter>
       <div className="app-shell">
+        <div className="pyrus-banner">
+          built by arben — a new way to buy bitcoin, 1 btc for $1,200/mo at{' '}
+          <a href="https://pyrusfinancial.com" target="_blank" rel="noopener noreferrer">[ pyrus financial → ]</a>
+        </div>
         <header>
           <pre className="ascii-header" style={{ margin: 0 }}>{HEADER}</pre>
           <h1 className="mobile-header">RPOW3 — Reusable Proofs of Work</h1>

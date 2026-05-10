@@ -404,6 +404,9 @@ ${nextAdjLine}
           a modern tribute to a tribute to the original rpow by hal finney —
           <a href="https://nakamotoinstitute.org/finney/rpow/" target="_blank" rel="noreferrer"> finney's announcement</a>
         </div>
+        <div style={{ marginTop: 4 }} className="tagline">
+          built by arben — day job: <a href="https://pyrusfinancial.com" target="_blank" rel="noopener noreferrer">pyrus financial</a>, onboarding the next million to bitcoin
+        </div>
       </Panel>
 
       <Panel title="USER GROWTH">
