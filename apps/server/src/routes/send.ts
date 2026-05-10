@@ -111,7 +111,7 @@ export async function sendRoutes(app: FastifyInstance) {
         // Email send is inside the transaction so a failure rolls back the invalidation.
         const claimUrl = `${app.config.magicLinkBaseUrl}/claim?token=${claimToken}`;
         const subject = `${sender} sent you ${amount} RPOW`;
-        const text = `${sender} sent you ${amount} RPOW (Reusable Proofs of Work) on rpow3.com.\n\nClick to claim:\n${claimUrl}\n\nLink expires in ${PENDING_TTL_DAYS} days.\n\n--\nrpow3.com — a modern tribute to a tribute to the original rpow by hal finney`;
+        const text = `${sender} sent you ${amount} RPOW (Reusable Proofs of Work) on rpow3.com.\n\nClick to claim:\n${claimUrl}\n\nLink expires in ${PENDING_TTL_DAYS} days.\n\n--\nrpow3 is a tribute project by arben.\nDay job: onboarding the next million to Bitcoin at Pyrus Financial.\nhttps://pyrusfinancial.com\n\n--\nrpow3.com — a modern tribute to a tribute to the original rpow by hal finney`;
         const html = `<div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;background:#0b0b0b;color:#e8e3d3;padding:24px;max-width:560px;margin:0 auto;">
   <p style="margin:0 0 16px 0;font-size:14px;"><strong style="color:#6ee7b7;">${sender}</strong> just sent you <strong style="color:#6ee7b7;">${amount} RPOW</strong> (Reusable Proofs of Work) on <a href="https://rpow3.com" style="color:#6ee7b7;">rpow3.com</a>.</p>
   <p style="margin:0 0 24px 0;"><a href="${claimUrl}" style="background:#6ee7b7;color:#0b0b0b;padding:10px 18px;text-decoration:none;border-radius:4px;font-weight:bold;display:inline-block;">[ CLAIM ${amount} RPOW ]</a></p>
@@ -119,6 +119,9 @@ export async function sendRoutes(app: FastifyInstance) {
   <p style="font-size:11px;color:#aaa;margin:0 0 24px 0;word-break:break-all;"><a href="${claimUrl}" style="color:#aaa;">${claimUrl}</a></p>
   <hr style="border:none;border-top:1px solid #333;margin:24px 0;">
   <p style="font-size:11px;color:#666;margin:0;">Link expires in ${PENDING_TTL_DAYS} days. rpow3.com — a modern tribute to a tribute to the original rpow by hal finney.</p>
+  <hr style="border:none;border-top:1px solid #333;margin:20px 0 12px;">
+  <p style="font-size:11px;color:#888;margin:0 0 4px 0;">rpow3 is a tribute project by arben.</p>
+  <p style="font-size:11px;color:#888;margin:0 0 4px 0;">Day job: onboarding the next million to Bitcoin at <a href="https://pyrusfinancial.com" style="color:#aaa;">Pyrus Financial</a>.</p>
 </div>`;
 
         await app.mailer.send({ to: recipient, subject, text, html });

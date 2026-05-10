@@ -54,8 +54,8 @@ export async function authRoutes(app: FastifyInstance) {
     await app.mailer.send({
       to: email,
       subject: 'rpow3 — your magic link',
-      text: `Click to sign in:\n${link}\n\nLink expires in 15 minutes.`,
-      html: `<p>Click to sign in to <a href="${link}">rpow3</a>.</p><p><a href="${link}">${link}</a></p><p>Link expires in 15 minutes.</p>`,
+      text: `Click to sign in:\n${link}\n\nLink expires in 15 minutes.\n\n--\nrpow3 is a tribute project by arben.\nDay job: onboarding the next million to Bitcoin at Pyrus Financial.\nhttps://pyrusfinancial.com`,
+      html: `<p>Click to sign in to <a href="${link}">rpow3</a>.</p><p><a href="${link}">${link}</a></p><p>Link expires in 15 minutes.</p><hr style="border:none;border-top:1px solid #333;margin:20px 0 12px;"><p style="font-size:11px;color:#888;margin:0 0 4px 0;">rpow3 is a tribute project by arben.</p><p style="font-size:11px;color:#888;margin:0 0 4px 0;">Day job: onboarding the next million to Bitcoin at <a href="https://pyrusfinancial.com" style="color:#aaa;">Pyrus Financial</a>.</p>`,
     });
 
     return { ok: true, cooldown_seconds: 30 };

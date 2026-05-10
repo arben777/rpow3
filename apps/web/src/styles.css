@@ -152,6 +152,21 @@ input:focus { border-color: var(--accent); background: rgba(255,255,255,0.04); }
 .nav .sep { color: var(--dimmer); }
 
 .tagline { color: var(--dim); font-size: 12px; }
+
+.pyrus-banner {
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+  padding: 6px 0;
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pyrus-banner a {
+  color: var(--accent);
+  border-bottom: none;
+}
 .error { color: var(--error); }
 .dim { color: var(--dim); }
 .accent { color: var(--accent); }
@@ -220,6 +235,14 @@ main { margin-top: 4px; }
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;
+  }
+
+  /* Banner: shrink slightly and allow wrapping on narrow viewports so it
+     doesn't push the ASCII header down or get clipped. */
+  .pyrus-banner {
+    font-size: 11px;
+    white-space: normal;
+    line-height: 1.4;
   }
 
   /* Hide the desktop ASCII art and reveal the mobile title. */
