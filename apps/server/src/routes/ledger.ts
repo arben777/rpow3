@@ -52,7 +52,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
         FROM users u, t
         WHERE t.n >= 2
         ORDER BY u.created_at ASC
-        OFFSET (SELECT FLOOR((n - 1) / 2.0)::int FROM t)
+        OFFSET (SELECT GREATEST(0, FLOOR((n - 1) / 2.0))::int FROM t)
         LIMIT 1
       `),
       app.pool.query<{ at: Date | null }>(`SELECT min(created_at) AS at FROM users`),

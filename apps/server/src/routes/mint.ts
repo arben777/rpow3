@@ -5,6 +5,7 @@ import { readSession } from './auth.js';
 import { verifySolution } from '../pow.js';
 import { signTokenPayload } from '../signing.js';
 import { withTx } from '../db.js';
+import { invalidateMe } from './me.js';
 
 const Body = z.object({ challenge_id: z.string().uuid(), solution_nonce: z.string().regex(/^\d{1,20}$/) });
 
@@ -71,6 +72,7 @@ export async function mintRoutes(app: FastifyInstance) {
       const status = result.error === 'CHALLENGE_EXPIRED' || result.error === 'SUPPLY_EXHAUSTED' ? 410 : 400;
       return reply.code(status).send(result);
     }
+    invalidateMe(s.email);
     return result;
   });
 }

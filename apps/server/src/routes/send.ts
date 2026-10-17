@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { readSession } from './auth.js';
 import { withTx } from '../db.js';
 import { signTokenPayload } from '../signing.js';
+import { invalidateMe } from './me.js';
 
 const Body = z.object({
   recipient_email: z.string().email(),
@@ -147,6 +148,10 @@ export async function sendRoutes(app: FastifyInstance) {
     }
 
     if ('error' in out) return reply.code(out.status).send({ error: out.error, message: out.message });
+    // Balances changed for both parties; drop their cached /me rows so the
+    // wallet reflects the transfer on the very next read.
+    invalidateMe(sender);
+    invalidateMe(recipient);
     return out;
   });
 }

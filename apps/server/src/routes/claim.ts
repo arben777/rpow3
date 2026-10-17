@@ -3,6 +3,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { withTx } from '../db.js';
 import { signTokenPayload } from '../signing.js';
 import { signSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from '../session.js';
+import { invalidateMe } from './me.js';
 
 export async function claimRoutes(app: FastifyInstance) {
   app.get('/claim', async (req, reply) => {
@@ -88,6 +89,7 @@ export async function claimRoutes(app: FastifyInstance) {
     });
 
     if ('error' in out) return reply.code(out.status).send({ error: out.error, message: out.message });
+    invalidateMe(out.recipient_email);
 
     // Sign the recipient in.
     const sessionToken = signSession({ email: out.recipient_email }, app.config.sessionSecret, SESSION_TTL_SECONDS);
