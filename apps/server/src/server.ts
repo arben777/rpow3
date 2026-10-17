@@ -1,11 +1,11 @@
 import { parseEnv } from './env.js';
-import { createPool, runMigrations } from './db.js';
+import { createPool, runMigrationsWithRetry } from './db.js';
 import { buildApp } from './buildApp.js';
 import { ResendMailer, FakeMailer, type Mailer } from './mailer.js';
 
 const env = parseEnv();
 const pool = createPool(env.DATABASE_URL);
-await runMigrations(pool);
+await runMigrationsWithRetry(pool);
 
 const extraOrigins = env.EXTRA_WEB_ORIGINS
   ? env.EXTRA_WEB_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)

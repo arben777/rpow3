@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { difficultyForSupply, epochInfo } from '../schedule.js';
-import { makeCachedAggregate, withAggregateClient } from '../aggregateCache.js';
+import { makeCachedAggregate, series, withAggregateClient } from '../aggregateCache.js';
 
 /**
  * Public /stats endpoint — drives the stats.rpow3.com dashboard.
@@ -194,17 +194,17 @@ export async function statsRoutes(app: FastifyInstance) {
       { rows: users },
       { rows: topRows },
       { rows: domainRows },
-    ] = await Promise.all([
-      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
-      c.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
-      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
-      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
+    ] = await series([
+      () => c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
+      () => c.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
+      () => c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
+      () => c.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
       // Top 30 miners by tokens currently held — VALID supply, not lifetime
       // mints. Mirrors what wallet pages show. We materialize 30 rows so
       // we can also derive the top10/top30 supply share by summing in JS,
       // avoiding two extra GROUP BY passes that previously hit the 5 s
       // statement_timeout under viral load.
-      c.query<{ owner: string; tokens: number }>(`
+      () => c.query<{ owner: string; tokens: number }>(`
         SELECT owner_email AS owner, count(*)::int AS tokens
         FROM tokens
         WHERE state = 'VALID'
@@ -215,7 +215,7 @@ export async function statsRoutes(app: FastifyInstance) {
       // Per-domain user counts. We classify into providers/regions in JS so
       // we don't have to keep two giant CASE expressions in lockstep with
       // the Set/list above.
-      c.query<{ domain: string; n: number }>(`
+      () => c.query<{ domain: string; n: number }>(`
         SELECT lower(split_part(email, '@', 2)) AS domain, count(*)::int AS n
         FROM users
         GROUP BY domain
