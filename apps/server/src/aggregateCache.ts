@@ -93,13 +93,30 @@ export function makeCachedAggregate<T>(opts: CachedAggregateOpts<T>): () => Prom
 }
 
 /**
+ * Run a list of query thunks one after another and return their results
+ * as a tuple, preserving per-element types the way Promise.all does.
+ *
+ * Aggregate refreshes run every query on one connection, and pg 8
+ * deprecates (pg 9 removes) issuing a query on a client that is already
+ * executing one, so the queries must be awaited in sequence rather than
+ * fired together with Promise.all.
+ */
+export async function series<T extends readonly unknown[]>(
+  thunks: { [K in keyof T]: () => Promise<T[K]> },
+): Promise<T> {
+  const out: unknown[] = [];
+  for (const t of thunks) out.push(await t());
+  return out as unknown as T;
+}
+
+/**
  * Run `fn` on a single pooled connection with its own statement_timeout.
  *
  * Aggregates share one connection instead of taking one per query, so a
- * refresh costs the pool exactly one slot however many queries it runs
- * (pg serialises concurrent queries on one client, so Promise.all still
- * works). SET LOCAL scopes the wider timeout to this transaction; the
- * app-wide 5 s cap from db.ts resumes for everything else.
+ * refresh costs the pool exactly one slot however many queries it runs.
+ * Issue the queries with `series`, not Promise.all. SET LOCAL scopes the
+ * wider timeout to this transaction; the app-wide 5 s cap from db.ts
+ * resumes for everything else.
  */
 export async function withAggregateClient<T>(
   pool: Pool,

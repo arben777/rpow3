@@ -61,20 +61,60 @@ export async function withTx<T>(pool: Pool, fn: (c: PoolClient) => Promise<T>): 
   } finally { c.release(); }
 }
 
+// Arbitrary but fixed key for the migration advisory lock. Advisory locks
+// are database-wide, so every replica that connects to the same DB
+// contends on this one key.
+const MIGRATION_LOCK_KEY = 7_337_001;
+
 export async function runMigrations(pool: Pool): Promise<void> {
-  await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
-    filename TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
   const dir = join(__dirname, '..', 'migrations');
   const files = (await readdir(dir)).filter(f => f.endsWith('.sql')).sort();
-  for (const f of files) {
-    const { rows } = await pool.query('SELECT 1 FROM schema_migrations WHERE filename=$1', [f]);
-    if (rows.length) continue;
-    const sql = await readFile(join(dir, f), 'utf8');
-    await withTx(pool, async (c) => {
-      await c.query(sql);
-      await c.query('INSERT INTO schema_migrations(filename) VALUES($1)', [f]);
-    });
-  }
+
+  // On a deploy Railway boots several replicas at once and each one runs
+  // this. Without coordination two replicas can both see a migration as
+  // unapplied and run it concurrently. CREATE INDEX IF NOT EXISTS is not
+  // atomic — the existence check and the catalog insert are separate — so
+  // the loser crashed with
+  //   duplicate key value violates unique constraint "pg_class_relname_nsp_index"
+  // and the replica restarted into a crash loop until the winner committed.
+  //
+  // Serialise replicas behind a session-level advisory lock held on one
+  // dedicated connection: the first replica applies what is missing while
+  // the others block on the lock, then re-check and skip what is already
+  // recorded. statement_timeout is lifted on this connection for the
+  // duration so a replica waiting on a long index build isn't cancelled
+  // (and the build itself isn't either). RESET restores the pool default
+  // before the connection goes back.
+  await withClient(pool, async (c) => {
+    await c.query('SET statement_timeout = 0');
+    try {
+      await c.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+      try {
+        // Inside the lock: CREATE TABLE IF NOT EXISTS has the same
+        // check-then-insert race as CREATE INDEX IF NOT EXISTS.
+        await c.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
+          filename TEXT PRIMARY KEY,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+        for (const f of files) {
+          const { rows } = await c.query('SELECT 1 FROM schema_migrations WHERE filename=$1', [f]);
+          if (rows.length) continue;
+          const sql = await readFile(join(dir, f), 'utf8');
+          await c.query('BEGIN');
+          try {
+            await c.query(sql);
+            await c.query('INSERT INTO schema_migrations(filename) VALUES($1)', [f]);
+            await c.query('COMMIT');
+          } catch (e) {
+            await c.query('ROLLBACK');
+            throw e;
+          }
+        }
+      } finally {
+        await c.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+      }
+    } finally {
+      await c.query('RESET statement_timeout');
+    }
+  });
 }
