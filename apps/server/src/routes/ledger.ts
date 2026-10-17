@@ -1,21 +1,25 @@
 import type { FastifyInstance } from 'fastify';
 import { difficultyForSupply, epochInfo } from '../schedule.js';
+import { makeCachedAggregate, withAggregateClient } from '../aggregateCache.js';
 
-// /ledger is polled aggressively by every active client (mining UI refresh,
-// status bar). Each call does 4 full-table scans on tokens (no suitable
-// index for these aggregates). Without coalescing, thousands of concurrent
-// pollers melt the DB.
+// /ledger is hit by every visitor to the ledger page. Each refresh runs
+// several whole-table aggregates on tokens, and those get slower as the
+// table grows. The refresh is cached and coalesced (see aggregateCache.ts):
+// a fresh body is served for LEDGER_CACHE_MS, a stale one is served
+// immediately while a single background refresh runs, and if a refresh
+// fails the last good body keeps being served while the DB gets a
+// LEDGER_RETRY_MS breather. 15 s of staleness is invisible in a ledger view.
 //
-// Cache the response for LEDGER_CACHE_MS and coalesce concurrent refreshes
-// behind a single in-flight promise. ~5s staleness is invisible in a ledger
-// view.
-const LEDGER_CACHE_MS = 5_000;
+// All queries in one refresh share a single pooled connection with their
+// own statement_timeout, so a refresh costs the pool exactly one slot and
+// can't starve /auth or /mint even when the aggregates run long.
+const LEDGER_CACHE_MS = 15_000;
+const LEDGER_RETRY_MS = 15_000;
+const LEDGER_STATEMENT_TIMEOUT_MS = 20_000;
 
 export async function ledgerRoutes(app: FastifyInstance) {
-  let cached: { ts: number; body: unknown } | null = null;
-  let inflight: Promise<unknown> | null = null;
-
   async function refresh() {
+    return withAggregateClient(app.pool, LEDGER_STATEMENT_TIMEOUT_MS, async (c) => {
     const [
       { rows: minted },
       { rows: transferred },
@@ -26,14 +30,14 @@ export async function ledgerRoutes(app: FastifyInstance) {
       { rows: firstSignupRows },
       { rows: rateRows },
     ] = await Promise.all([
-      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
-      app.pool.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
-      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
-      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
+      c.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
       // 5-minute cumulative user count. Window function adds new_users into
       // a running total per bin. date_bin (Postgres 14+) gives evenly-aligned
       // 5-min buckets anchored at epoch.
-      app.pool.query<{ at: Date; users: number }>(`
+      c.query<{ at: Date; users: number }>(`
         WITH binned AS (
           SELECT date_bin('5 minutes', created_at, TIMESTAMPTZ '2000-01-01') AS bucket,
                  count(*) AS new_users
@@ -46,7 +50,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
       // Doubling time: with N users, the user at offset floor((N-1)/2) was
       // signing up when the count crossed N/2. (now - that.created_at) is
       // the time it took to double from N/2 to N. NULL when N < 2.
-      app.pool.query<{ seconds: string | null }>(`
+      c.query<{ seconds: string | null }>(`
         WITH t AS (SELECT count(*)::int AS n FROM users)
         SELECT EXTRACT(epoch FROM (now() - u.created_at))::bigint::text AS seconds
         FROM users u, t
@@ -55,12 +59,12 @@ export async function ledgerRoutes(app: FastifyInstance) {
         OFFSET (SELECT GREATEST(0, FLOOR((n - 1) / 2.0))::int FROM t)
         LIMIT 1
       `),
-      app.pool.query<{ at: Date | null }>(`SELECT min(created_at) AS at FROM users`),
+      c.query<{ at: Date | null }>(`SELECT min(created_at) AS at FROM users`),
       // Recent mint rate over the last 30 minutes — used to estimate when the
       // next +1-bit difficulty bump will land. 30m is wide enough to be stable
       // and tight enough to reflect current load. count(*) on a partial range
       // is fine; /ledger is cached 5s anyway.
-      app.pool.query<{ n: number }>(`
+      c.query<{ n: number }>(`
         SELECT count(*)::int AS n FROM tokens
         WHERE parent_token_id IS NULL
           AND issued_at > now() - interval '30 minutes'
@@ -88,7 +92,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
       // (epoch * epochSize)-th mint is the one that crossed the most recent
       // milestone — its issued_at is the moment of the last difficulty bump.
       const offset = info.epoch * app.config.mintEpochSize - 1;
-      const { rows: adjRows } = await app.pool.query<{ at: Date }>(
+      const { rows: adjRows } = await c.query<{ at: Date }>(
         `SELECT issued_at AS at FROM tokens
          WHERE parent_token_id IS NULL
          ORDER BY issued_at ASC OFFSET $1 LIMIT 1`,
@@ -123,20 +127,16 @@ export async function ledgerRoutes(app: FastifyInstance) {
       next_adjustment_eta_seconds: nextAdjustmentEtaSeconds,
       mint_rate_per_minute: Math.round(ratePerSec * 60),
     };
+    });
   }
 
-  app.get('/ledger', async () => {
-    if (cached && Date.now() - cached.ts < LEDGER_CACHE_MS) return cached.body;
-    if (inflight) return inflight;
-    inflight = (async () => {
-      try {
-        const body = await refresh();
-        cached = { ts: Date.now(), body };
-        return body;
-      } finally {
-        inflight = null;
-      }
-    })();
-    return inflight;
+  const getLedger = makeCachedAggregate({
+    name: 'ledger',
+    ttlMs: LEDGER_CACHE_MS,
+    retryAfterMs: LEDGER_RETRY_MS,
+    refresh,
+    onError: (e) => app.log.error({ err: e }, '/ledger refresh failed; serving last good result if any'),
   });
+
+  app.get('/ledger', async () => getLedger());
 }
