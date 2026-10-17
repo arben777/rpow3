@@ -53,3 +53,48 @@ describe.skipIf(skip)('runMigrations under concurrent replicas', () => {
     }
   });
 });
+
+describe.skipIf(skip)('pool resilience', () => {
+  it('survives an idle connection being killed server-side and reconnects', async () => {
+    const pool = createPool(url!);
+    const admin = createPool(url!);
+    try {
+      const { rows } = await pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+      const pid = rows[0]!.pid;
+      // The client is idle in the pool now. Kill its backend the way a
+      // Postgres restart would. Before the 'error' listener this surfaced
+      // as an unhandled 'error' event and took the process down.
+      await admin.query('SELECT pg_terminate_backend($1)', [pid]);
+      await new Promise(r => setTimeout(r, 200));
+      const again = await pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+      expect(again.rows[0]!.pid).not.toBe(pid);
+    } finally {
+      await pool.end();
+      await admin.end();
+    }
+  });
+
+  it('runMigrationsWithRetry waits while the DB is unreachable, then gives up with the original error', async () => {
+    const { runMigrationsWithRetry } = await import('../src/db.js');
+    // Nothing listens on this port; connections are refused immediately.
+    const dead = createPool('postgres://postgres:p@127.0.0.1:1/nope');
+    const logs: string[] = [];
+    const started = Date.now();
+    try {
+      await expect(
+        runMigrationsWithRetry(dead, { maxWaitMs: 400, intervalMs: 100, log: (m) => logs.push(m) }),
+      ).rejects.toThrow();
+      expect(Date.now() - started).toBeGreaterThanOrEqual(350);
+      expect(logs.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      await dead.end();
+    }
+  });
+
+  it('runMigrationsWithRetry does not retry a real migration error', async () => {
+    const { isConnectionError } = await import('../src/db.js');
+    expect(isConnectionError(Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' }))).toBe(false);
+    expect(isConnectionError(new Error('Connection terminated due to connection timeout'))).toBe(true);
+    expect(isConnectionError(Object.assign(new Error('connect ECONNREFUSED 10.0.0.1:5432'), { code: 'ECONNREFUSED' }))).toBe(true);
+  });
+});
