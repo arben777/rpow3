@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { difficultyForSupply, epochInfo } from '../schedule.js';
+import { makeCachedAggregate, withAggregateClient } from '../aggregateCache.js';
 
 /**
  * Public /stats endpoint — drives the stats.rpow3.com dashboard.
@@ -22,6 +23,12 @@ import { difficultyForSupply, epochInfo } from '../schedule.js';
  * there.
  */
 const STATS_CACHE_MS = 60_000;
+// After a failed refresh, leave the DB alone this long before retrying.
+// The last good body keeps being served meanwhile (see aggregateCache.ts).
+const STATS_RETRY_MS = 30_000;
+// The leaderboard GROUP BY is the single heaviest query in the app; give
+// the refresh its own budget instead of the app-wide 5 s cap.
+const STATS_STATEMENT_TIMEOUT_MS = 30_000;
 
 const KNOWN_PROVIDER_DOMAINS = new Set<string>([
   'gmail.com', 'googlemail.com',
@@ -177,10 +184,9 @@ const REGION_ORDER = [
 ] as const;
 
 export async function statsRoutes(app: FastifyInstance) {
-  let cached: { ts: number; body: unknown } | null = null;
-  let inflight: Promise<unknown> | null = null;
-
   async function refresh() {
+    // One pooled connection, own statement_timeout: see aggregateCache.ts.
+    return withAggregateClient(app.pool, STATS_STATEMENT_TIMEOUT_MS, async (c) => {
     const [
       { rows: minted },
       { rows: transferred },
@@ -189,16 +195,16 @@ export async function statsRoutes(app: FastifyInstance) {
       { rows: topRows },
       { rows: domainRows },
     ] = await Promise.all([
-      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
-      app.pool.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
-      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
-      app.pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE parent_token_id IS NULL`),
+      c.query<{ n: number }>(`SELECT coalesce(sum(amount),0)::int AS n FROM transfers`),
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM tokens WHERE state='VALID'`),
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
       // Top 30 miners by tokens currently held — VALID supply, not lifetime
       // mints. Mirrors what wallet pages show. We materialize 30 rows so
       // we can also derive the top10/top30 supply share by summing in JS,
       // avoiding two extra GROUP BY passes that previously hit the 5 s
       // statement_timeout under viral load.
-      app.pool.query<{ owner: string; tokens: number }>(`
+      c.query<{ owner: string; tokens: number }>(`
         SELECT owner_email AS owner, count(*)::int AS tokens
         FROM tokens
         WHERE state = 'VALID'
@@ -209,7 +215,7 @@ export async function statsRoutes(app: FastifyInstance) {
       // Per-domain user counts. We classify into providers/regions in JS so
       // we don't have to keep two giant CASE expressions in lockstep with
       // the Set/list above.
-      app.pool.query<{ domain: string; n: number }>(`
+      c.query<{ domain: string; n: number }>(`
         SELECT lower(split_part(email, '@', 2)) AS domain, count(*)::int AS n
         FROM users
         GROUP BY domain
@@ -322,22 +328,18 @@ export async function statsRoutes(app: FastifyInstance) {
       region_inferable_count: inferableCount,
       region_inferable_percent: inferablePercent,
     };
+    });
   }
 
-  app.get('/stats', async () => {
-    if (cached && Date.now() - cached.ts < STATS_CACHE_MS) return cached.body;
-    if (inflight) return inflight;
-    inflight = (async () => {
-      try {
-        const body = await refresh();
-        cached = { ts: Date.now(), body };
-        return body;
-      } finally {
-        inflight = null;
-      }
-    })();
-    return inflight;
+  const getStats = makeCachedAggregate({
+    name: 'stats',
+    ttlMs: STATS_CACHE_MS,
+    retryAfterMs: STATS_RETRY_MS,
+    refresh,
+    onError: (e) => app.log.error({ err: e }, '/stats refresh failed; serving last good result if any'),
   });
+
+  app.get('/stats', async () => getStats());
 }
 
 export const _statsTestExports = { maskEmail, providerFromDomain, regionFromDomain };
