@@ -34,3 +34,13 @@ SET LOCAL statement_timeout = 0;
 CREATE INDEX IF NOT EXISTS tokens_root_issued_idx
   ON tokens(issued_at)
   WHERE parent_token_id IS NULL;
+
+-- /ledger also orders the whole users table by created_at to find the
+-- user at offset N/2 (doubling time), takes min(created_at) (first
+-- signup), and bins created_at for the growth chart. The primary key is
+-- on email, so every one of these sorted or scanned the full table and
+-- the doubling query was among the statements being cancelled in the
+-- production logs. A plain btree on created_at turns the offset lookup
+-- and min() into index walks.
+CREATE INDEX IF NOT EXISTS users_created_at_idx
+  ON users(created_at);
